@@ -52,6 +52,3 @@ def hstack(arrays, cast_to_object=True):
         raise e
 
 
-def collapse_first_dim(arr: np.ndarray):
-    shape = (-1, *arr.shape[2:])
-    return arr.reshape(shape)

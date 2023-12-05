@@ -1,19 +1,14 @@
-from typing import (
-    List,
-    Tuple
-)
-
 import pandas as pd
-from sklearn.base import TransformerMixin
-from sklearn.base import clone
+from sklearn.base import TransformerMixin, clone
 from sklearn.utils.metaestimators import _BaseComposition
 
-from ._pandas_column_transformer import PandasColumnTransformer
-from ..utils import validation
-from ..utils.pandas import loc_group
+from deepts.utils import validation
+from deepts.utils.pandas import loc_group
+
+from ._column import PandasColumnTransformer
 
 
-class GroupWiseColumnTransformer(TransformerMixin, _BaseComposition):
+class GroupedColumnTransformer(TransformerMixin, _BaseComposition):
     """Transformer that transforms by groups.
 
     For each group, a :class:`PandasColumnTransformer` is fitted and
@@ -32,22 +27,8 @@ class GroupWiseColumnTransformer(TransformerMixin, _BaseComposition):
         Tuples of the form (transformer, columns) specifying the
         transformer objects to be applied to subsets of the data.
 
-        transformer : {'drop', 'passthrough'} or estimator
-            Estimator must support :term:`fit` and :term:`transform`.
-            Special-cased strings 'drop' and 'passthrough' are accepted as
-            well, to indicate to drop the columns or to pass them through
-            untransformed, respectively.
-
-        columns : str,  array-like of str, int, array-like of int, slice,
-            array-like of bool or callable
-            Indexes the data on its second axis. Integers are interpreted as
-            positional columns, while strings can reference DataFrame columns
-            by name. A scalar string or int should be used where
-            ``transformer`` expects X to be a 1d array-like (vector),
-            otherwise a 2d array will be passed to the transformer.
-            A callable is passed the input data `X` and can return any of the
-            above. To select multiple columns by name or dtype, you can use
-            :obj:`make_column_selector`.
+    group_cols : list of str
+        Column names identifying each group in the data.
 
 
     Attributes
@@ -57,15 +38,11 @@ class GroupWiseColumnTransformer(TransformerMixin, _BaseComposition):
         :class:`PandasColumnTransformer` object.
     """
 
-    def __init__(
-            self,
-            transformers: List[Tuple],
-            group_ids: List[str]
-    ):
+    def __init__(self, transformers: list[tuple], group_cols: list[str]):
         self.transformers = transformers
-        self.group_ids = group_ids
+        self.group_cols = group_cols
 
-    def fit(self, X, y=None):
+    def fit(self, X: pd.DataFrame, y=None):
         """Fits a sklearn ColumnTransformer object to each group inside ``X``.
 
         In other words, each group in ``X`` gets assigned its own
@@ -75,7 +52,8 @@ class GroupWiseColumnTransformer(TransformerMixin, _BaseComposition):
         Parameters
         ----------
         X : pd.DataFrame
-            Dataframe having __init__ ``group_ids`` column(s).
+            Input data to fit.
+            Must contain ``group_ids`` column(s).
 
         y : None
             This param exists for compatibility purposes with sklearn.
@@ -85,14 +63,14 @@ class GroupWiseColumnTransformer(TransformerMixin, _BaseComposition):
         self (object): Fitted transformer.
         """
         validation.check_group_ids(X, self.group_ids)
+        self.column_transformers_: dict[str, PandasColumnTransformer] = {}
 
-        self.column_transformers_ = {}
         groups = X.groupby(self.group_ids).groups
-        for i, group_id in enumerate(groups):
+        for g in groups:
             column_transformer = self.make_column_transformer()
-            group = loc_group(X, self.group_ids, group_id)
+            group = loc_group(X, self.group_ids, g)
             column_transformer.fit(group)
-            self.column_transformers_[group_id] = column_transformer
+            self.column_transformers_[g] = column_transformer
 
         return self
 
@@ -103,9 +81,10 @@ class GroupWiseColumnTransformer(TransformerMixin, _BaseComposition):
         -------
         column_transformer : PandasColumnTransformer
         """
-        if not hasattr(self, '_column_transformer'):
+        if not hasattr(self, "_column_transformer"):
             self._column_transformer = PandasColumnTransformer(
-                self.transformers)
+                self.transformers
+            )
         return clone(self._column_transformer)
 
     def transform(self, X):
@@ -114,7 +93,8 @@ class GroupWiseColumnTransformer(TransformerMixin, _BaseComposition):
         Parameters
         ----------
         X : pd.DataFrame
-            Dataframe having __init__ ``group_ids`` column(s).
+            Input data to transform.
+            Must contain ``group_ids`` column(s).
 
         Returns
         -------
@@ -168,7 +148,8 @@ class GroupWiseColumnTransformer(TransformerMixin, _BaseComposition):
 
     def iter(self, fitted=True, replace_strings=False, column_as_strings=True):
         return self._column_transformer.iter(
-            fitted, replace_strings, column_as_strings)
+            fitted, replace_strings, column_as_strings
+        )
 
     @property
     def feature_names_in_(self):

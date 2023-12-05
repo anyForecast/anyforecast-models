@@ -10,9 +10,9 @@ from sklearn.compose._column_transformer import (
 )
 from sklearn.utils.metaestimators import _BaseComposition
 
-from ..exceptions import InverseTransformFeaturesError
-from ..preprocessing import Transformer
-from ..utils import data, validation
+from deepts.exceptions import InverseTransformFeaturesError
+from deepts.preprocessing import Transformer
+from deepts.utils import data, validation
 
 
 class PandasColumnTransformer(TransformerMixin, _BaseComposition):
@@ -37,7 +37,7 @@ class PandasColumnTransformer(TransformerMixin, _BaseComposition):
         self.int_to_float = int_to_float
 
         self._inverse_transformer = ColumnTransformerInverseTransformer(self)
-        self._dtypes_inferencer = DTypesInferencer(self, int_to_float)
+        self._dtypes_inference = DTypesInference(self, int_to_float)
 
     def fit(self, X: pd.DataFrame, y: None = None) -> PandasColumnTransformer:
         """Fit all transformers using X.
@@ -149,7 +149,7 @@ class PandasColumnTransformer(TransformerMixin, _BaseComposition):
         -------
         feature_dtypes : dict, str -> dtype
         """
-        return self._dtypes_inferencer.get_feature_dtypes_out()
+        return self._dtypes_inference.get_feature_dtypes_out()
 
     def iter(self, fitted=True, replace_strings=False, column_as_strings=True):
         """Generates (name, trans, column, weight) tuples.
@@ -172,7 +172,7 @@ class PandasColumnTransformer(TransformerMixin, _BaseComposition):
     def get_feature_name_out_for_transformer(
         self,
         name: str,
-        trans: str | Transformer,
+        trans: str,
         column: list[str],
         input_features: list[str] = None,
     ):
@@ -198,7 +198,7 @@ class PandasColumnTransformer(TransformerMixin, _BaseComposition):
         )
 
 
-class DTypesInferencer:
+class DTypesInference:
     """Infers output dtypes for a :class:`ColumnTransformer` instance.
 
     Output dtypes are either inferred from the column transformer input dtypes

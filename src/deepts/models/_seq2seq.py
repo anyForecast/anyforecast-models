@@ -1,27 +1,21 @@
 import collections
 import random
-from typing import (
-    Tuple,
-    Literal,
-    List,
-    Dict,
-    Callable,
-    Optional,
-    Union
-)
+from typing import Literal, Union
 
 import torch
 from pytorch_forecasting import metrics
+from skorch.callbacks import Callback
 from torch import nn
 
-from . import base
-from ..data import TimeseriesDataset
-from ..utils import rnn
+from deepts.data import TimeseriesDataset
+from deepts.utils import rnn
 
-HiddenState = Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]
+from . import _base
+
+HiddenState = Union[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]
 
 
-class Seq2Seq(base.TimeseriesNeuralNet):
+class Seq2Seq(_base.TimeseriesNeuralNet):
     """Seq2Seq architecture.
 
     This model applies a sequence to sequence learning architecture to solve
@@ -48,7 +42,7 @@ class Seq2Seq(base.TimeseriesNeuralNet):
     Parameters
     ----------
     group_ids : list of str
-        List of column names identifying a time series. This means that the
+        list of column names identifying a time series. This means that the
         ``group_ids`` identify a sample together with the ``date``. If you
         have only one times series, set this to the name of column that is
         constant.
@@ -69,20 +63,20 @@ class Seq2Seq(base.TimeseriesNeuralNet):
         the time series dataset.
 
     time_varying_known_reals : list of str
-        List of continuous variables that change over time and are known in the
+        list of continuous variables that change over time and are known in the
         future (e.g. price of a product, but not demand of a product). If None,
         every numeric column excluding ``target`` is used.
 
     time_varying_unknown_reals : list of str
-        List of continuous variables that change over time and are not known in
+        list of continuous variables that change over time and are not known in
         the future. You might want to include your ``target`` here. If None,
         only ``target`` is used.
 
     static_reals : list of str
-        List of continuous variables that do not change over time
+        list of continuous variables that do not change over time
 
     static_categoricals : list of str
-        List of categorical variables that do not change over time (also known
+        list of categorical variables that do not change over time (also known
         as `time independent variables`). You might want to include your
         ``group_ids`` here for the learning algorithm to distinguish between
         different time series.
@@ -153,33 +147,34 @@ class Seq2Seq(base.TimeseriesNeuralNet):
     """
 
     def __init__(
-            self,
-            group_ids: List[str],
-            time_idx: str,
-            target: str,
-            max_prediction_length: int,
-            static_categoricals: Optional[List[str]] = None,
-            static_reals: Optional[List[str]] = None,
-            time_varying_known_reals: Optional[List[str]] = None,
-            time_varying_unknown_reals: Optional[List[str]] = None,
-            criterion: metrics.MultiHorizonMetric = metrics.RMSE,
-            optimizer: torch.optim.Optimizer = torch.optim.Adam,
-            max_encoder_length: Optional[int] = None,
-            min_encoder_length: Optional[int] = None,
-            min_prediction_length: Optional[int] = None,
-            train_split: Optional[Callable] = None,
-            callbacks: Optional[List] = None,
-            max_epochs: int = 10,
-            batch_size: int = 64,
-            embedding_dim: int = 10,
-            hidden_size: int = 16, tf_ratio: float = 0.2, num_layers: int = 1,
-            cell: str = "LSTM",
-            warm_start: bool = False,
-            verbose: int = 1,
-            device: Literal["cpu", "cuda"] = "cpu",
-            **kwargs
+        self,
+        group_ids: list[str],
+        time_idx: str,
+        target: str,
+        max_prediction_length: int,
+        static_categoricals: list[str] | None = None,
+        static_reals: list[str] | None = None,
+        time_varying_known_reals: list[str] | None = None,
+        time_varying_unknown_reals: list[str] | None = None,
+        criterion: metrics.MultiHorizonMetric = metrics.RMSE,
+        optimizer: torch.optim.Optimizer = torch.optim.Adam,
+        max_encoder_length: int | None = None,
+        min_encoder_length: int | None = None,
+        min_prediction_length: int | None = None,
+        train_split: callable | None = None,
+        callbacks: list[Callback] | None = None,
+        max_epochs: int = 10,
+        batch_size: int = 64,
+        embedding_dim: int = 10,
+        hidden_size: int = 16,
+        tf_ratio: float = 0.2,
+        num_layers: int = 1,
+        cell: str = "LSTM",
+        warm_start: bool = False,
+        verbose: int = 1,
+        device: Literal["cpu", "cuda"] = "cpu",
+        **kwargs
     ):
-
         target = self._check_target(target)
         super().__init__(
             module=Seq2SeqModule,
@@ -205,7 +200,8 @@ class Seq2Seq(base.TimeseriesNeuralNet):
             callbacks=callbacks,
             iterator_train__collate_fn=Seq2SeqCollateFunction(),
             iterator_valid__collate_fn=Seq2SeqCollateFunction(),
-            **kwargs)
+            **kwargs
+        )
 
         self.embedding_dim = embedding_dim
         self.hidden_size = hidden_size
@@ -213,7 +209,7 @@ class Seq2Seq(base.TimeseriesNeuralNet):
         self.num_layers = num_layers
         self.cell = cell
 
-    def _check_target(self, target: Union[str, List[str]]):
+    def _check_target(self, target: Union[str, list[str]]):
         """Checks if target is list of one element.
 
         Keep this validation only until multi-target is supported.
@@ -223,27 +219,25 @@ class Seq2Seq(base.TimeseriesNeuralNet):
         if isinstance(target, list):
             if len(target) > 1:
                 raise ValueError(
-                    'Seq2Seq currently does not support multi-target training '
-                    'and prediction')
+                    "Seq2Seq currently does not support multi-target training "
+                    "and prediction"
+                )
             return target[0]
         return target
 
 
 class Seq2SeqCollateFunction:
-    """Customized Seq2Seq collate function.
-    """
+    """Customized Seq2Seq collate function."""
 
     def pad_sequences(
-            self,
-            x_dict: Dict[str, List],
-            keys: Tuple
-    ) -> Dict[str, Union[List, torch.Tensor]]:
+        self, x_dict: dict[str, list], keys: tuple
+    ) -> dict[str, Union[list, torch.Tensor]]:
         """Pads sequences.
 
         Parameters
         ----------
         x_dict : dict str -> list
-            Dict containing the lists to be padded.
+            dict containing the lists to be padded.
 
         keys : tuple of str
             Keys referencing the lists to be padded.
@@ -253,18 +247,15 @@ class Seq2SeqCollateFunction:
         In-place operation.
         """
         padded_sequences = {
-            k: rnn.pad_sequence(x_dict[k], batch_first=True)
-            for k in keys
+            k: rnn.pad_sequence(x_dict[k], batch_first=True) for k in keys
         }
 
         x_dict.update(padded_sequences)
         return x_dict
 
     def update_dict(
-            self,
-            x_dict: Dict[str, List],
-            sample: Tuple
-    ) -> Dict[str, List]:
+        self, x_dict: dict[str, list], sample: tuple
+    ) -> dict[str, list]:
         """Updates dict with sample data.
 
         Warnings
@@ -272,13 +263,13 @@ class Seq2SeqCollateFunction:
         In-place operation.
         """
         X, y = sample
-        length = X['encoder_length']
+        length = X["encoder_length"]
 
         x_dict["encoder_lengths"].append(length)
         x_dict["decoder_lengths"].append(X["decoder_length"])
         x_dict["categoricals"].append(X["x_cat"][0])
-        x_dict["encoder_cont"].append(X['x_cont'][:length])
-        x_dict["decoder_cont"].append(X['x_cont'][length:])
+        x_dict["encoder_cont"].append(X["x_cont"][:length])
+        x_dict["decoder_cont"].append(X["x_cont"][length:])
 
         # TODO: Handle multi-target case.
         x_dict["decoder_target"].append(y[0])
@@ -286,25 +277,20 @@ class Seq2SeqCollateFunction:
         return x_dict
 
     def __call__(
-            self,
-            batch: List[Tuple[Dict[str, torch.Tensor], torch.Tensor]]
-    ) -> Tuple[Dict[str, Dict[str, torch.Tensor]], torch.Tensor]:
+        self, batch: list[tuple[dict[str, torch.Tensor], torch.Tensor]]
+    ) -> tuple[dict[str, dict[str, torch.Tensor]], torch.Tensor]:
         """Collate function to combine items into mini-batch for dataloader.
 
         Parameters
         ----------
-        batch : List[Tuple[Dict[str, torch.Tensor], torch.Tensor]]:
-            List of samples.
+        batch : list[tuple[dict[str, torch.Tensor], torch.Tensor]]:
+            list of samples.
 
         Returns
         -------
-        minibatch : Tuple[Dict[str, torch.Tensor], torch.Tensor]
+        minibatch : tuple[dict[str, torch.Tensor], torch.Tensor]
         """
-        sequences_to_pad = (
-            "encoder_cont",
-            "decoder_cont",
-            "decoder_target"
-        )
+        sequences_to_pad = ("encoder_cont", "decoder_cont", "decoder_target")
 
         x_dict = collections.defaultdict(list)
         for sample in batch:
@@ -318,7 +304,7 @@ class Seq2SeqCollateFunction:
         x_dict["encoder_lengths"] = torch.LongTensor(x_dict["encoder_lengths"])
         x_dict["decoder_lengths"] = torch.LongTensor(x_dict["decoder_lengths"])
 
-        return {'x': x_dict}, x_dict["decoder_target"]
+        return {"x": x_dict}, x_dict["decoder_target"]
 
 
 class Seq2SeqModule(torch.nn.Module):
@@ -341,13 +327,13 @@ class Seq2SeqModule(torch.nn.Module):
         Size of the context vector.
 
     target : list of str
-        List of target names.
+        list of target names.
 
     time_varying_reals_encoder : list of str
-        List of variables to be encoded.
+        list of variables to be encoded.
 
     time_varying_reals_decoder : list of str
-        List of variables used when decoding.
+        list of variables used when decoding.
 
     cell : str, {"LSTM", "GRU"}, default="LSTM"
         Cell type.
@@ -357,16 +343,16 @@ class Seq2SeqModule(torch.nn.Module):
     """
 
     def __init__(
-            self,
-            embedding_dim: int,
-            embedding_sizes: Tuple[int],
-            hidden_size: int,
-            target: List[str],
-            time_varying_reals_encoder: List[str],
-            time_varying_reals_decoder: List[str],
-            cell: str = "LSTM",
-            num_layers: int = 1,
-            tf_ratio: float = 0.2
+        self,
+        embedding_dim: int,
+        embedding_sizes: tuple[int],
+        hidden_size: int,
+        target: list[str],
+        time_varying_reals_encoder: list[str],
+        time_varying_reals_decoder: list[str],
+        cell: str = "LSTM",
+        num_layers: int = 1,
+        tf_ratio: float = 0.2,
     ):
         super().__init__()
 
@@ -380,25 +366,25 @@ class Seq2SeqModule(torch.nn.Module):
             embedding_dim=embedding_dim,
             embedding_sizes=embedding_sizes,
             encoder_hidden_size=hidden_size,
-            encoder_num_layers=num_layers
+            encoder_num_layers=num_layers,
         )
 
         self.encoder = rnn.make_rnn(
             cell_type=cell,
             input_size=len(time_varying_reals_encoder),
             hidden_size=hidden_size,
-            num_layers=num_layers)
+            num_layers=num_layers,
+        )
 
         self.decoder = rnn.make_rnn(
             cell_type=cell,
             input_size=len(time_varying_reals_decoder + target),
             hidden_size=hidden_size,
-            num_layers=num_layers
+            num_layers=num_layers,
         )
 
         self.decoder_projection = nn.Linear(
-            in_features=hidden_size,
-            out_features=len(target)
+            in_features=hidden_size, out_features=len(target)
         )
 
     @property
@@ -409,12 +395,13 @@ class Seq2SeqModule(torch.nn.Module):
         -------
         target_positions : torch.LongTensor
         """
-        return torch.LongTensor([self.covariates.index(name) for name in
-                                 self.target])
+        return torch.LongTensor(
+            [self.covariates.index(name) for name in self.target]
+        )
 
     @property
-    def covariates(self) -> List[str]:
-        """List of all covariates used by the model.
+    def covariates(self) -> list[str]:
+        """list of all covariates used by the model.
 
         Returns
         -------
@@ -431,7 +418,8 @@ class Seq2SeqModule(torch.nn.Module):
         decoder_positions : torch.LongTensor
         """
         return torch.LongTensor(
-            [self.covariates.index(x) for x in self.time_varying_reals_decoder])
+            [self.covariates.index(x) for x in self.time_varying_reals_decoder]
+        )
 
     def use_teacher(self) -> bool:
         """Decides whether to use teacher forcing or not.
@@ -442,7 +430,7 @@ class Seq2SeqModule(torch.nn.Module):
         """
         return random.random() < self.tf_ratio and self.training
 
-    def forward(self, x: Dict[str, torch.Tensor]) -> torch.Tensor:
+    def forward(self, x: dict[str, torch.Tensor]) -> torch.Tensor:
         """Forwards pass.
 
         Notes
@@ -472,10 +460,7 @@ class Seq2SeqModule(torch.nn.Module):
 
         return output
 
-    def get_initial_state(
-            self,
-            x: Dict[str, torch.Tensor]
-    ) -> HiddenState:
+    def get_initial_state(self, x: dict[str, torch.Tensor]) -> HiddenState:
         """Returns encoder initial state.
 
         Returns
@@ -493,30 +478,29 @@ class Seq2SeqModule(torch.nn.Module):
         return initial_state
 
     def encode(
-            self,
-            x: Dict[str, torch.Tensor],
-            hidden_state: HiddenState
-    ) -> Tuple[torch.Tensor, HiddenState]:
+        self, x: dict[str, torch.Tensor], hidden_state: HiddenState
+    ) -> tuple[torch.Tensor, HiddenState]:
         """Transforms an input sequence of variable length into a fixed-shape
         context variable.
 
         Returns
         -------
         (encoder_output, hidden_state) : tuple
-            Tuple of Tensors.
+            tuple of Tensors.
         """
         input_vector = x["encoder_cont"]
         lengths = x["encoder_lengths"]
         encoder_output, hidden_state = self.encoder(
-            input_vector, hidden_state, lengths, enforce_sorted=False)
+            input_vector, hidden_state, lengths, enforce_sorted=False
+        )
 
         return encoder_output, hidden_state
 
     def decode(
-            self,
-            x: Dict[str, torch.Tensor],
-            hidden_state: HiddenState,
-            first_input: torch.Tensor
+        self,
+        x: dict[str, torch.Tensor],
+        hidden_state: HiddenState,
+        first_input: torch.Tensor,
     ) -> torch.Tensor:
         """Maps the fixed-shape encoded state into a variable-length sequence.
 
@@ -533,16 +517,18 @@ class Seq2SeqModule(torch.nn.Module):
             # used as input (along with the rest of decoder covariates)
             # at every step.
             lengths = x["decoder_lengths"]
-            output, _ = self.decoder(input_vector, hidden_state,
-                                     lengths=lengths, enforce_sorted=False)
+            output, _ = self.decoder(
+                input_vector,
+                hidden_state,
+                lengths=lengths,
+                enforce_sorted=False,
+            )
 
             return self.decoder_projection(output).squeeze(-1)
 
         def decode_single_step(
-                index: int,
-                previous_output: torch.Tensor,
-                hidden_state: HiddenState
-        ) -> Tuple[torch.Tensor, HiddenState]:
+            index: int, previous_output: torch.Tensor, hidden_state: HiddenState
+        ) -> tuple[torch.Tensor, HiddenState]:
             """Decodes single step.
 
             Parameters
@@ -559,7 +545,7 @@ class Seq2SeqModule(torch.nn.Module):
             Returns
             -------
             (decoder_output, hidden_state) : tuple
-                Tuple of Tensors.
+                tuple of Tensors.
             """
             x = input_vector[:, [index]]
 
@@ -575,15 +561,15 @@ class Seq2SeqModule(torch.nn.Module):
             decode_one=decode_single_step,
             first_input=first_input,
             first_hidden_state=hidden_state,
-            n_decoder_steps=input_vector.size(1)
+            n_decoder_steps=input_vector.size(1),
         )
 
     def decode_autoregressive(
-            self,
-            decode_one: Callable,
-            first_input: torch.Tensor,
-            first_hidden_state: HiddenState,
-            n_decoder_steps: int
+        self,
+        decode_one: callable,
+        first_input: torch.Tensor,
+        first_hidden_state: HiddenState,
+        n_decoder_steps: int,
     ) -> torch.Tensor:
         """Make predictions in autoregressive manner.
 
@@ -617,8 +603,10 @@ class Seq2SeqModule(torch.nn.Module):
 
         for index in range(n_decoder_steps):
             current_output, current_hidden_state = decode_one(
-                index=index, previous_output=current_output,
-                hidden_state=current_hidden_state)
+                index=index,
+                previous_output=current_output,
+                hidden_state=current_hidden_state,
+            )
 
             output.append(current_output)
 
@@ -627,11 +615,7 @@ class Seq2SeqModule(torch.nn.Module):
         return output
 
     @classmethod
-    def from_dataset(
-            cls,
-            ds: TimeseriesDataset,
-            **kwargs
-    ) -> "Seq2SeqModule":
+    def from_dataset(cls, ds: TimeseriesDataset, **kwargs) -> "Seq2SeqModule":
         """Creates module from dataset.
 
         Parameters
@@ -649,7 +633,7 @@ class Seq2SeqModule(torch.nn.Module):
         """
         # Get embedding sizes from categorical data.
         pfds = ds.get_pytorch_forecasting_ds()
-        embedding_sizes = torch.max(pfds.data['categoricals'], dim=0)
+        embedding_sizes = torch.max(pfds.data["categoricals"], dim=0)
         embedding_sizes = tuple(embedding_sizes.values.numpy() + 1)
 
         # All continuous variables, i.e., time_varying_known_reals,
@@ -663,7 +647,8 @@ class Seq2SeqModule(torch.nn.Module):
             embedding_sizes=embedding_sizes,
             target=ds.features.target_names,
             time_varying_reals_encoder=time_varying_reals_encoder,
-            time_varying_reals_decoder=time_varying_reals_decoder)
+            time_varying_reals_decoder=time_varying_reals_decoder,
+        )
 
         kwargs.update(new_kwargs)
         return cls(**kwargs)
@@ -691,11 +676,11 @@ class MultiEmbedding(nn.Module):
     """
 
     def __init__(
-            self,
-            embedding_dim: int,
-            embedding_sizes: Tuple[int],
-            encoder_hidden_size: int,
-            encoder_num_layers: int
+        self,
+        embedding_dim: int,
+        embedding_sizes: tuple[int],
+        encoder_hidden_size: int,
+        encoder_num_layers: int,
     ):
         super().__init__()
         self.embedding_dim = embedding_dim
@@ -708,11 +693,11 @@ class MultiEmbedding(nn.Module):
             # Assign a :class:`nn.Sequential` model to each embedding.
             _module_dict[str(i)] = nn.Sequential(
                 nn.Embedding(size, embedding_dim),
-                nn.Linear(embedding_dim, encoder_hidden_size)
+                nn.Linear(embedding_dim, encoder_hidden_size),
             )
 
         self.linear = nn.Linear(len(embedding_sizes), encoder_num_layers)
-        self.module_dict = nn.ModuleDict(_module_dict)
+        self.module_dict = nn.Moduledict(_module_dict)
 
     def forward(self, tokens: torch.Tensor) -> torch.Tensor:
         batch_size = len(tokens)
@@ -721,7 +706,7 @@ class MultiEmbedding(nn.Module):
         output_shape = (
             batch_size,
             self.encoder_hidden_size,
-            len(self.embedding_sizes)
+            len(self.embedding_sizes),
         )
         output = torch.zeros(output_shape, device=tokens.device)
 

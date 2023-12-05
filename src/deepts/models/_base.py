@@ -9,8 +9,8 @@ import sklearn
 import skorch
 import torch
 
-from ..data import SliceDataset, TimeseriesDataset
-from ..utils import validation
+from deepts.data import SliceDataset, TimeseriesDataset
+from deepts.utils import validation
 
 
 class InitParameterInference:
@@ -420,21 +420,6 @@ class TimeseriesNeuralNet(sklearn.base.BaseEstimator):
         if return_dataset:
             return output, dataset
         return output
-
-    # def pandas_predict(self, X: pd.DataFrame) -> pd.DataFrame:
-    #     """Outputs predictions into a pandas DataFrame.
-    #
-    #     Parameters
-    #     ----------
-    #     X : pd.DataFrame
-    #         Input values.
-    #
-    #     Returns
-    #     -------
-    #     output: pd.DataFrame
-    #     """
-    #     output, dataset = self.predict(X, return_dataset=True)
-    #     return self.output_transformer(dataset).transform(output, out=X)
 
     def get_predict_dataset(self, X: pd.DataFrame) -> TimeseriesDataset:
         """Returns dataset in prediction mode.

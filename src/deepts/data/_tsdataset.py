@@ -8,7 +8,7 @@ import torch
 from pytorch_forecasting.data import encoders, timeseries
 from torch.utils.data import Dataset as TorchDataset
 
-from ..preprocessing import IdentityTransformer, Transformer
+from deepts.preprocessing import IdentityTransformer, Transformer
 
 
 @dataclass

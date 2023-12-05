@@ -22,7 +22,7 @@ from sklearn.utils import check_random_state
 from sklearn.utils.fixes import delayed
 from sklearn.utils.random import sample_without_replacement
 
-from ..models.base import TimeseriesNeuralNet
+from ..models._base import TimeseriesNeuralNet
 
 MAX_INT = np.iinfo(np.int32).max
 

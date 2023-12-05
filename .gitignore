@@ -7,7 +7,7 @@
 node_modules/
 dist/
 build/
-skorch_forecasting.egg-info/
+deepts.egg-info/
 
 # Compiled Java class files
 *.class
