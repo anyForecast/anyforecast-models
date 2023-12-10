@@ -1,14 +1,14 @@
 import pandas as pd
-from sklearn.base import TransformerMixin, clone
-from sklearn.utils.metaestimators import _BaseComposition
+from sklearn.compose import ColumnTransformer
 
-from deepts.utils import validation
-from deepts.utils.pandas import loc_group
+from deepts.base import Transformer
+from deepts.utils import checks, pandas
+from deepts.decorators import check_cols, check
 
 from ._column import PandasColumnTransformer
 
 
-class GroupedColumnTransformer(TransformerMixin, _BaseComposition):
+class GroupedColumnTransformer(Transformer):
     """Transformer that transforms by groups.
 
     For each group, a :class:`PandasColumnTransformer` is fitted and
@@ -38,10 +38,14 @@ class GroupedColumnTransformer(TransformerMixin, _BaseComposition):
         :class:`PandasColumnTransformer` object.
     """
 
-    def __init__(self, transformers: list[tuple], group_cols: list[str]):
-        self.transformers = transformers
+    def __init__(
+        self, column_transformer: ColumnTransformer, group_cols: list[str]
+    ):
+        self.column_transformer = column_transformer
         self.group_cols = group_cols
 
+    @check_cols(cols="group_cols")
+    @check(checks=[checks.check_is_frame])
     def fit(self, X: pd.DataFrame, y=None):
         """Fits a sklearn ColumnTransformer object to each group inside ``X``.
 
@@ -62,15 +66,14 @@ class GroupedColumnTransformer(TransformerMixin, _BaseComposition):
         -------
         self (object): Fitted transformer.
         """
-        validation.check_group_ids(X, self.group_ids)
         self.column_transformers_: dict[str, PandasColumnTransformer] = {}
 
-        groups = X.groupby(self.group_ids).groups
-        for g in groups:
+        groupby = X.groupby(self.group_cols)
+        for group_name in groupby.groups:
             column_transformer = self.make_column_transformer()
-            group = loc_group(X, self.group_ids, g)
+            group = groupby.get_group(group_name)
             column_transformer.fit(group)
-            self.column_transformers_[g] = column_transformer
+            self.column_transformers_[group_name] = column_transformer
 
         return self
 
@@ -81,13 +84,13 @@ class GroupedColumnTransformer(TransformerMixin, _BaseComposition):
         -------
         column_transformer : PandasColumnTransformer
         """
-        if not hasattr(self, "_column_transformer"):
-            self._column_transformer = PandasColumnTransformer(
-                self.transformers
-            )
-        return clone(self._column_transformer)
+        if not hasattr(self, "_pandas_ct"):
+            self._pandas_ct = PandasColumnTransformer(self.column_transformer)
+        return self._pandas_ct.clone()
 
-    def transform(self, X):
+    @check_cols(cols="group_cols")
+    @check(checks=[checks.check_is_frame], check_is_fitted=True)
+    def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         """Transforms every group in X.
 
         Parameters
@@ -101,18 +104,22 @@ class GroupedColumnTransformer(TransformerMixin, _BaseComposition):
         X_out : pd.DataFrame.
             Transformed dataframe
         """
-        validation.check_is_fitted(self)
-        validation.check_group_ids(X, self.group_ids)
+        transformed_groups: list[pd.DataFrame] = []
+        groupby = X.groupby(self.group_cols)
 
-        transformed_data = []
-        for group_id, column_transformer in self.column_transformers_.items():
-            group = loc_group(X, self.group_ids, group_id)
-            if not group.empty:
-                transformed_group = column_transformer.transform(group)
-                transformed_data.append(transformed_group)
+        for group_name in groupby.groups:
+            if group_name not in self.column_transformers_:
+                continue
 
-        return pd.concat(transformed_data).reset_index(drop=True)
+            group = groupby.get_group(group_name)
+            ct = self.column_transformers_[group_name]
+            transformed_group = ct.transform(group)
+            transformed_groups.append(transformed_group)
 
+        return pd.concat(transformed_groups).reset_index(drop=True)
+
+    @check_cols(cols="group_cols")
+    @check(checks=[checks.check_is_frame], check_is_fitted=True)
     def inverse_transform(self, X):
         """Inverse transformation.
 
@@ -134,12 +141,9 @@ class GroupedColumnTransformer(TransformerMixin, _BaseComposition):
         X_inv : pd.DataFrame
             Inverse transformed dataframe
         """
-        validation.check_is_fitted(self)
-        validation.check_group_ids(X, self.group_ids)
-
         inverse_transforms = []
         for group_id, column_transformer in self.column_transformers_.items():
-            group = loc_group(X, self.group_ids, group_id)
+            group = pandas.loc_group(X, self.group_cols, group_id)
             if not group.empty:
                 inverse = column_transformer.inverse_transform(group)
                 inverse_transforms.append(inverse)
@@ -147,13 +151,11 @@ class GroupedColumnTransformer(TransformerMixin, _BaseComposition):
         return pd.concat(inverse_transforms)
 
     def iter(self, fitted=True, replace_strings=False, column_as_strings=True):
-        return self._column_transformer.iter(
-            fitted, replace_strings, column_as_strings
-        )
+        return self._pandas_ct.iter(fitted, replace_strings, column_as_strings)
 
     @property
     def feature_names_in_(self):
-        return self._column_transformer.feature_names_in_
+        return self._pandas_ct.feature_names_in_
 
     def get_feature_names_out(self, input_features=None):
-        return self._column_transformer.get_feature_names_out(input_features)
+        return self._pandas_ct.get_feature_names_out(input_features)

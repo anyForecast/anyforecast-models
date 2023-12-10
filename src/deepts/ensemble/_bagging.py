@@ -1,4 +1,4 @@
-"""Bagging for skorch-forecasting models.
+"""Bagging for deepts models.
 
 This is a copy of :mod:`sklearn.ensemble._bagging` with only few modifications
 to support TimeseriesDatasets.
@@ -6,29 +6,22 @@ to support TimeseriesDatasets.
 
 import itertools
 import numbers
-from typing import (
-    Union,
-    Tuple,
-    Optional
-)
 
 import numpy as np
 import pandas as pd
 from joblib import Parallel
-from sklearn.base import BaseEstimator
-from sklearn.base import clone
-from sklearn.ensemble._base import _set_random_states, _partition_estimators
+from sklearn.base import BaseEstimator, clone
+from sklearn.ensemble._base import _partition_estimators, _set_random_states
 from sklearn.utils import check_random_state
 from sklearn.utils.fixes import delayed
 from sklearn.utils.random import sample_without_replacement
 
-from ..models._base import TimeseriesNeuralNet
+from deepts.models import TimeseriesNeuralNet
 
 MAX_INT = np.iinfo(np.int32).max
 
 
-def _generate_bagging_indices(random_state, bootstrap, n_population,
-                              n_samples):
+def _generate_bagging_indices(random_state, bootstrap, n_population, n_samples):
     """Draw randomly sampled indices."""
     # Get valid random state
     random_state = check_random_state(random_state)
@@ -66,8 +59,10 @@ def _parallel_build_estimators(n_estimators, ensemble, X, seeds):
 
 def _parallel_predict_regression(estimators, X, raw, inverse_transformer):
     """Private function used to compute predictions within a job."""
-    return [estimator.predict(X, raw, inverse_transformer)
-            for estimator in estimators]
+    return [
+        estimator.predict(X, raw, inverse_transformer)
+        for estimator in estimators
+    ]
 
 
 class Bagging(BaseEstimator):
@@ -110,15 +105,15 @@ class Bagging(BaseEstimator):
     """
 
     def __init__(
-            self,
-            base_estimator: TimeseriesNeuralNet,
-            n_estimators: int = 10,
-            max_samples: Union[int, float] = 1.0,
-            bootstrap: bool = True,
-            estimator_params: Tuple = tuple(),
-            n_jobs: Optional[int] = None,
-            random_state: Optional[int] = None,
-            verbose: int = 0
+        self,
+        base_estimator: TimeseriesNeuralNet,
+        n_estimators: int = 10,
+        max_samples: int | float = 1.0,
+        bootstrap: bool = True,
+        estimator_params: tuple = tuple(),
+        n_jobs: int | None = None,
+        random_state: int | None = None,
+        verbose: int = 0,
     ):
         self.base_estimator = base_estimator
         self.n_estimators = n_estimators
@@ -132,8 +127,7 @@ class Bagging(BaseEstimator):
         self._validate_estimator()
 
     def _validate_estimator(self):
-        """Check the base_estimator and the n_estimator attributes.
-        """
+        """Check the base_estimator and the n_estimator attributes."""
         if not isinstance(self.n_estimators, int):
             raise ValueError(
                 "n_estimators must be an integer, got {0}.".format(
@@ -228,7 +222,7 @@ class Bagging(BaseEstimator):
                 n_estimators_per_job[i],
                 self,
                 X,
-                seeds[starts[i]: starts[i + 1]],
+                seeds[starts[i] : starts[i + 1]],
             )
             for i in range(n_jobs)
         )
@@ -270,16 +264,20 @@ class Bagging(BaseEstimator):
 
         """
         # Parallel loop
-        n_jobs, n_estimators, starts = _partition_estimators(self.n_estimators,
-                                                             self.n_jobs)
-        all_y_hat = Parallel(n_jobs=n_jobs, )(
+        n_jobs, n_estimators, starts = _partition_estimators(
+            self.n_estimators, self.n_jobs
+        )
+        all_y_hat = Parallel(
+            n_jobs=n_jobs,
+        )(
             delayed(_parallel_predict_regression)(
-                self.estimators[starts[i]: starts[i + 1]],
+                self.estimators[starts[i] : starts[i + 1]],
                 X,
                 raw,
-                inverse_transformer
+                inverse_transformer,
             )
-            for i in range(n_jobs))
+            for i in range(n_jobs)
+        )
         all_y_hat = list(itertools.chain.from_iterable(all_y_hat))
 
         if raw:
