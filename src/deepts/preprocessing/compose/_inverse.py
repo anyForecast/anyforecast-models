@@ -120,10 +120,10 @@ class ColumnTransformerInverseTransform:
 
     def __init__(
         self,
-        ct: ColumnTransformer,
+        column_transformer: ColumnTransformer,
         non_inverse_behavior: Literal["raise", "ignore"] = "ignore",
     ):
-        self.ct = ColumnTransformerWrapper(ct)
+        self.column_transformer = ColumnTransformerWrapper(column_transformer)
         self.non_inverse_behavior = non_inverse_behavior
 
     @check(checks=[checks.check_is_frame])
@@ -143,13 +143,15 @@ class ColumnTransformerInverseTransform:
         """
         inverse_transforms: dict[str, np.ndarray] = {}
 
-        for name, trans, features_in, _ in self.ct.iter():
+        for name, trans, features_in, _ in self.column_transformer.iter():
 
             if isinstance(features_in, str):
                 features_in = [features_in]
 
-            features_out = self.ct.get_feature_name_out_for_transformer(
-                name=name, trans=trans, column=features_in
+            features_out = (
+                self.column_transformer.get_feature_name_out_for_transformer(
+                    name=name, trans=trans, column=features_in
+                )
             )
             if features_out is None:
                 continue

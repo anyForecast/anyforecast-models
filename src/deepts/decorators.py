@@ -14,7 +14,7 @@ class FitTransformCallable(Protocol):
 
 
 class FitTransformDecorator(Protocol):
-    """Extends behavior of callables with :class:`FitTransformCallable` signature."""
+    """Extends behavior of FitTransformCallable."""
 
     def __call__(self, f: FitTransformCallable) -> FitTransformCallable: ...
 

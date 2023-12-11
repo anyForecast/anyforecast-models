@@ -1,9 +1,10 @@
+import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
 
 from deepts.base import Transformer
-from deepts.utils import checks, pandas
-from deepts.decorators import check_cols, check
+from deepts.decorators import check, check_cols
+from deepts.utils import checks
 
 from ._column import PandasColumnTransformer
 
@@ -47,9 +48,9 @@ class GroupedColumnTransformer(Transformer):
     @check_cols(cols="group_cols")
     @check(checks=[checks.check_is_frame])
     def fit(self, X: pd.DataFrame, y=None):
-        """Fits a sklearn ColumnTransformer object to each group inside ``X``.
+        """Fits a :class:`ColumnTransformer` object to each group inside X.
 
-        In other words, each group in ``X`` gets assigned its own
+        In other words, each group in X gets assigned its own
         :class:`PandasColumnTransformer` instance which is then fitted to the
         data inside such group.
 
@@ -57,7 +58,7 @@ class GroupedColumnTransformer(Transformer):
         ----------
         X : pd.DataFrame
             Input data to fit.
-            Must contain ``group_ids`` column(s).
+            Must contain ``group_cols`` column(s).
 
         y : None
             This param exists for compatibility purposes with sklearn.
@@ -68,7 +69,7 @@ class GroupedColumnTransformer(Transformer):
         """
         self.column_transformers_: dict[str, PandasColumnTransformer] = {}
 
-        groupby = X.groupby(self.group_cols)
+        groupby = X.groupby(self.group_cols, group_keys=False)
         for group_name in groupby.groups:
             column_transformer = self.make_column_transformer()
             group = groupby.get_group(group_name)
@@ -90,6 +91,53 @@ class GroupedColumnTransformer(Transformer):
 
     @check_cols(cols="group_cols")
     @check(checks=[checks.check_is_frame], check_is_fitted=True)
+    def _groupwise_transform(
+        self, X: pd.DataFrame, inverse: bool = False
+    ) -> pd.DataFrame:
+        """Group-wise transformation.
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            Input data to transform.
+            Must contain ``group_ids`` column(s).
+
+        inverse : bool, default=False
+            If True, the inverse-transform function will be used.
+
+        Returns
+        -------
+        Xt : pd.DataFrame.
+            Transformed dataframe
+        """
+        groupby = X.groupby(self.group_cols, group_keys=True)
+
+        def apply_fn(group: pd.DataFrame) -> pd.DataFrame:
+            """Applies transformation function to a single group.
+
+            Parameters
+            ----------
+            group : pd.DataFrame
+                Subset of X containing data for a single group.
+
+            Returns
+            -------
+            pd.DataFrame
+                Transformed group.
+            """
+            if group.name not in self.column_transformers_:
+                return group
+
+            ct = self.column_transformers_[group.name]
+            transform_func = ct.inverse_transform if inverse else ct.transform
+            return transform_func(group)
+
+        return (
+            groupby.apply(apply_fn)
+            .reset_index(self.group_cols)
+            .reset_index(drop=True)
+        )
+
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         """Transforms every group in X.
 
@@ -101,61 +149,38 @@ class GroupedColumnTransformer(Transformer):
 
         Returns
         -------
-        X_out : pd.DataFrame.
+        Xt : pd.DataFrame.
             Transformed dataframe
         """
-        transformed_groups: list[pd.DataFrame] = []
-        groupby = X.groupby(self.group_cols)
+        return self._groupwise_transform(X)
 
-        for group_name in groupby.groups:
-            if group_name not in self.column_transformers_:
-                continue
-
-            group = groupby.get_group(group_name)
-            ct = self.column_transformers_[group_name]
-            transformed_group = ct.transform(group)
-            transformed_groups.append(transformed_group)
-
-        return pd.concat(transformed_groups).reset_index(drop=True)
-
-    @check_cols(cols="group_cols")
-    @check(checks=[checks.check_is_frame], check_is_fitted=True)
-    def inverse_transform(self, X):
-        """Inverse transformation.
+    def inverse_transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        """Inverse transforms input data.
 
         Notes
         -----
         Transformed columns whose corresponding transformer does not have
         implemented an :meth:`inverse_transform` method will not appear after
-        calling this inverse transformation. This causes that the resulting
-        DataFrame ``X_out`` might not be equal to the original X, that is, the
-        expression X = f-1(f(X)) wont be satisfied.
+        calling this inverse transformation. This causes that the returned
+        DataFrame might not be equal to the original X, that is, the
+        expression X = f-1(f(X)) won't be satisfied.
 
         Parameters
         ----------
         X : pd.DataFrame
             Dataframe to be inverse transformed.
+            Must contain ``group_ids`` column(s).
 
         Returns
         -------
-        X_inv : pd.DataFrame
-            Inverse transformed dataframe
+        Xi : pd.DataFrame
+            Inverse transformed dataframe.
         """
-        inverse_transforms = []
-        for group_id, column_transformer in self.column_transformers_.items():
-            group = pandas.loc_group(X, self.group_cols, group_id)
-            if not group.empty:
-                inverse = column_transformer.inverse_transform(group)
-                inverse_transforms.append(inverse)
-
-        return pd.concat(inverse_transforms)
-
-    def iter(self, fitted=True, replace_strings=False, column_as_strings=True):
-        return self._pandas_ct.iter(fitted, replace_strings, column_as_strings)
+        return self._groupwise_transform(X, inverse=True)
 
     @property
-    def feature_names_in_(self):
+    def feature_names_in_(self) -> np.ndarray:
         return self._pandas_ct.feature_names_in_
 
-    def get_feature_names_out(self, input_features=None):
+    def get_feature_names_out(self, input_features=None) -> np.ndarray:
         return self._pandas_ct.get_feature_names_out(input_features)
