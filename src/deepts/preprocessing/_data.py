@@ -1,4 +1,4 @@
-from ._base import BaseTransformer
+from deepts.base import Transformer
 
 
 def _identity(X):
@@ -6,7 +6,7 @@ def _identity(X):
     return X
 
 
-class IdentityTransformer(BaseTransformer):
+class IdentityTransformer(Transformer):
     """Identity Transformer"""
 
     def __init__(self):

@@ -5,12 +5,11 @@ from typing import Any, Literal, Type
 
 import numpy as np
 import pandas as pd
-import sklearn
 import skorch
 import torch
 
+from deepts.base import Transformer
 from deepts.data import SliceDataset, TimeseriesDataset
-from deepts.utils import validation
 
 
 class InitParameterInference:
@@ -69,7 +68,7 @@ class InitParameterInference:
         }
 
 
-class TimeseriesNeuralNet(sklearn.base.BaseEstimator):
+class TimeseriesNeuralNet(Transformer):
     """Base class for time series neural nets.
 
     In addition to the parameters listed below, there are parameters
@@ -413,7 +412,7 @@ class TimeseriesNeuralNet(sklearn.base.BaseEstimator):
         output : np.array.
             Predicted values.
         """
-        validation.check_is_fitted(self)
+        self.check_is_fitted()
         dataset = self.get_predict_dataset(X)
         output = self.skorch_.predict(dataset)
 
@@ -433,7 +432,7 @@ class TimeseriesNeuralNet(sklearn.base.BaseEstimator):
         -------
         dataset : torch.utils.data.Dataset
         """
-        validation.check_is_fitted(self)
+        self.check_is_fitted()
         return self.get_dataset(X, self.dataset_params_, predict_mode=True)
 
     def get_dataset(
@@ -492,7 +491,7 @@ class TimeseriesNeuralNet(sklearn.base.BaseEstimator):
         -------
         history : list
         """
-        validation.check_is_fitted(self)
+        self.check_is_fitted()
         if step_every == "epoch":
             history = self.skorch_.history_[:, name]
 

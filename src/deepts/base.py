@@ -1,28 +1,26 @@
 from __future__ import annotations
 
-from typing import Protocol
-
-
-from sklearn.base import BaseEstimator, TransformerMixin
+import numpy as np
 import sklearn
-
-
-class Check(Protocol):
-    def __call__(self, X) -> None: ...
+from sklearn.base import BaseEstimator, TransformerMixin, clone
 
 
 class Transformer(BaseEstimator, TransformerMixin):
-    """Transformer interface.
+    """Base Transformer."""
 
-    Used primarily for type hint.
-    """
+    def get_feature_names_out(self):
+        pass
 
-    def __init__(self, checks: list[Check] = ()):
-        self.checks = checks
+    def clone(self) -> Transformer:
+        return clone(self)
 
-    def check_X(self, X):
-        for check in self.checks:
-            check(X)
+    def validate_data(
+        self, X, reset: bool = True, force_all_finite: bool = True
+    ) -> np.ndarray:
+        """Wrapper for private sklearn data validation method."""
+        return self._validate_data(
+            X, reset=reset, force_all_finite=force_all_finite
+        )
 
     def check_is_fitted(self) -> None:
         """Perform is_fitted validation for this transformer.

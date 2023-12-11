@@ -1,30 +1,6 @@
 import numpy as np
 
 
-def is_int(dtype) -> bool:
-    """Checks if given dtype is int.
-
-    Parameters
-    ----------
-    dtype : np.dtype
-
-    Returns
-    -------
-    bool
-    """
-    int_dtypes = [
-        int,
-        np.dtype('int64'),
-        np.dtype('int32'),
-        np.dtype('int16')
-    ]
-
-    for int_dtype in int_dtypes:
-        if int_dtype == dtype:
-            return True
-    return False
-
-
 def hstack(arrays, cast_to_object=True):
     """Horizontally stacks numpy arrays.
 
@@ -50,5 +26,3 @@ def hstack(arrays, cast_to_object=True):
             obj_arrays = [arr.astype(object) for arr in arrays]
             return np.hstack(obj_arrays)
         raise e
-
-

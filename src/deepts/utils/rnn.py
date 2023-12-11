@@ -1,8 +1,4 @@
-from typing import (
-    List,
-    Union,
-    Optional
-)
+from typing import Literal
 
 import torch
 from pytorch_forecasting.models.nn import rnn
@@ -10,13 +6,13 @@ from torch import nn
 
 
 def make_rnn(
-        cell_type: str,
-        input_size: int,
-        hidden_size: int,
-        num_layers: int,
-        batch_first: Optional[bool] = True,
+    input_size: int,
+    hidden_size: int,
+    num_layers: int,
+    cell_type: Literal["LSTM", "GRU"] = "LSTM",
+    batch_first: bool = True,
 ) -> rnn.RNN:
-    """Factory for rnn cells.
+    """Returns rnn cell unit.
 
     Parameters
     ----------
@@ -38,14 +34,18 @@ def make_rnn(
             Inputs/Outputs sections below for details.  Default: ``False``
     """
     cls = rnn.get_rnn(cell_type)
-    return cls(input_size=input_size, hidden_size=hidden_size,
-               num_layers=num_layers, batch_first=batch_first)
+    return cls(
+        input_size=input_size,
+        hidden_size=hidden_size,
+        num_layers=num_layers,
+        batch_first=batch_first,
+    )
 
 
 def pad_sequence(
-        sequences: List[torch.Tensor],
-        batch_first: bool = False,
-        padding_value: float = 0.0
+    sequences: list[torch.Tensor],
+    batch_first: bool = False,
+    padding_value: float = 0.0,
 ) -> torch.Tensor:
     """Pad a list of variable length Tensors with ``padding_value``.
 
@@ -55,24 +55,25 @@ def pad_sequence(
 
 
 def pack_padded_sequence(
-        input: torch.Tensor,
-        lengths: Union[torch.Tensor, List[int]],
-        batch_first: bool = False,
-        enforce_sorted: bool = True
+    input: torch.Tensor,
+    lengths: torch.Tensor | list[int],
+    batch_first: bool = False,
+    enforce_sorted: bool = True,
 ):
     """Packs a Tensor containing padded sequences of variable length.
 
     Wrapper for :pyfunc:`torch.models.utils.rnn.pack_padded_sequence`
     """
     return nn.utils.rnn.pack_padded_sequence(
-        input, lengths, batch_first, enforce_sorted)
+        input, lengths, batch_first, enforce_sorted
+    )
 
 
 def pad_packed_sequence(
-        sequence: nn.utils.rnn.PackedSequence,
-        batch_first: bool = False,
-        padding_value: float = 0.0,
-        total_length: Optional[int] = None
+    sequence: nn.utils.rnn.PackedSequence,
+    batch_first: bool = False,
+    padding_value: float = 0.0,
+    total_length: int | None = None,
 ):
     """Pads a packed batch of variable length sequences.
 
@@ -80,4 +81,5 @@ def pad_packed_sequence(
     :pyfunc:`torch.models.utils.rnn.pad_packed_sequence`
     """
     return nn.utils.rnn.pad_packed_sequence(
-        sequence, batch_first, padding_value, total_length)
+        sequence, batch_first, padding_value, total_length
+    )

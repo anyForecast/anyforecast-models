@@ -1,7 +1,7 @@
 scikit-learn compatible library for state-of-the-art forecasting with neural
 networks.
 
-skorch-forecasting achieves sklearn compatibility through
+deepts achieves sklearn compatibility through
 [skorch](https://skorch.readthedocs.io/en/stable/), a neural network library
 that wraps PyTorch models into sklearn estimators.
 
@@ -16,12 +16,12 @@ Resources
 Installation
 ------------
 
-skorch-forecasting requires Python 3.10 or higher.
+deepts requires Python 3.10 or higher.
 
 ### From source
 
 ```
-git clone git@bitbucket.org:kuona/skorch-forecasting.git
+git clone https://github.com/ramonamezquita/deepts.git
 python -m pip install .
 ```
 
