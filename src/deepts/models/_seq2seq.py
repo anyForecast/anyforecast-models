@@ -1,6 +1,6 @@
 import collections
 import random
-from typing import Literal, Union
+from typing import Literal, Union, Callable
 
 import torch
 from pytorch_forecasting import metrics
@@ -161,7 +161,7 @@ class Seq2Seq(_base.TimeseriesNeuralNet):
         max_encoder_length: int | None = None,
         min_encoder_length: int | None = None,
         min_prediction_length: int | None = None,
-        train_split: callable | None = None,
+        train_split: Callable | None = None,
         callbacks: list[Callback] | None = None,
         max_epochs: int = 10,
         batch_size: int = 64,
@@ -173,7 +173,7 @@ class Seq2Seq(_base.TimeseriesNeuralNet):
         warm_start: bool = False,
         verbose: int = 1,
         device: Literal["cpu", "cuda"] = "cpu",
-        **kwargs
+        **kwargs,
     ):
         target = self._check_target(target)
         super().__init__(
@@ -200,7 +200,7 @@ class Seq2Seq(_base.TimeseriesNeuralNet):
             callbacks=callbacks,
             iterator_train__collate_fn=Seq2SeqCollateFunction(),
             iterator_valid__collate_fn=Seq2SeqCollateFunction(),
-            **kwargs
+            **kwargs,
         )
 
         self.embedding_dim = embedding_dim
@@ -697,7 +697,7 @@ class MultiEmbedding(nn.Module):
             )
 
         self.linear = nn.Linear(len(embedding_sizes), encoder_num_layers)
-        self.module_dict = nn.Moduledict(_module_dict)
+        self.module_dict = nn.ModuleDict(_module_dict)
 
     def forward(self, tokens: torch.Tensor) -> torch.Tensor:
         batch_size = len(tokens)
