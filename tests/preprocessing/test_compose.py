@@ -1,12 +1,12 @@
 import unittest
 
 import pandas as pd
-from sklearn.compose import make_column_transformer, ColumnTransformer
+from sklearn.compose import ColumnTransformer, make_column_transformer
 from sklearn.preprocessing import MinMaxScaler, OneHotEncoder, StandardScaler
 
 from deepts.preprocessing.compose import (
-    PandasColumnTransformer,
     GroupedColumnTransformer,
+    PandasColumnTransformer,
 )
 
 
@@ -81,7 +81,9 @@ class TestGroupedColumnTransformer(unittest.TestCase):
         ]
 
         ct = make_column_transformer(
-            *transformers, verbose_feature_names_out=False
+            *transformers,
+            verbose_feature_names_out=False,
+            remainder="passthrough",
         )
         self.ct = GroupedColumnTransformer(ct, group_cols=["id"])
 
@@ -96,12 +98,12 @@ class TestGroupedColumnTransformer(unittest.TestCase):
     def test_fit_transform(self):
         Xt = self.fit_transform().round(decimals=3)
         expected_data = {
-            "id": [0, 0, 0, 1, 1, 1],
             "c1": [0.000, 0.500, 1.000, 0.000, 1.000, 0.040],
             "c2": [-1.225, 0, 1.225, 1.336, -0.267, -1.069],
             "c3_blue": [0.0, 0.0, 1.0, 1.0, 0.0, 0.0],
             "c3_red": [0.0, 1.0, 0.0, 0.0, 1.0, 0.0],
             "c3_yellow": [1.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+            "id": [0, 0, 0, 1, 1, 1],
         }
 
         expected_frame = pd.DataFrame(expected_data)

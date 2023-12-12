@@ -697,7 +697,7 @@ class MultiEmbedding(nn.Module):
             )
 
         self.linear = nn.Linear(len(embedding_sizes), encoder_num_layers)
-        self.module_dict = nn.Moduledict(_module_dict)
+        self.module_dict = nn.ModuleDict(_module_dict)
 
     def forward(self, tokens: torch.Tensor) -> torch.Tensor:
         batch_size = len(tokens)

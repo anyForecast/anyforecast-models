@@ -1,5 +1,9 @@
 from sklearn import pipeline
-from sklearn.compose import make_column_selector
+from sklearn.compose import (
+    ColumnTransformer,
+    make_column_selector,
+    make_column_transformer,
+)
 from sklearn.preprocessing import MinMaxScaler, OneHotEncoder
 
 from deepts.base import Transformer
@@ -7,6 +11,12 @@ from deepts.base import Transformer
 from . import _encoders, compose
 
 __all__ = ("make_preprocessor",)
+
+
+def make_sk_column_transformer(transformers) -> ColumnTransformer:
+    return make_column_transformer(
+        *transformers, verbose_feature_names_out=False, remainder="passthrough"
+    )
 
 
 def make_numeric_selector(pattern: str | None = None) -> callable:
@@ -21,7 +31,8 @@ def make_timestamp_transformer(
     timestamp: str, freq: str
 ) -> compose.PandasColumnTransformer:
     transformers = [(_encoders.TimeIndexEncoder(freq=freq), timestamp)]
-    return compose.PandasColumnTransformer(transformers, int_to_float=False)
+    ct = make_sk_column_transformer(transformers)
+    return compose.PandasColumnTransformer(ct)
 
 
 def make_features_transformer(
@@ -34,15 +45,16 @@ def make_features_transformer(
     num_selector = make_numeric_selector(pattern)
     cat_selector = make_categorical_selector()
     transformers = [(scaler, num_selector), (encoder, cat_selector)]
-
-    return compose.GroupedColumnTransformer(transformers, group_ids)
+    ct = make_sk_column_transformer(transformers)
+    return compose.GroupedColumnTransformer(ct, group_cols=group_ids)
 
 
 def make_target_transformer(
     group_ids: str | list[str], target: str, scaler: Transformer
 ) -> compose.GroupedColumnTransformer:
     transformers = [(scaler, [target])]
-    return compose.GroupedColumnTransformer(transformers, group_ids)
+    ct = make_sk_column_transformer(transformers)
+    return compose.GroupedColumnTransformer(ct, group_cols=group_ids)
 
 
 def make_preprocessor(

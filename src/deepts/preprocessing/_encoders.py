@@ -165,6 +165,12 @@ class TimeIndexEncoder(Transformer):
         self.extra_timestamps = extra_timestamps
         self.freq = freq
 
+    @property
+    def dtype(self) -> np.dtype:
+        """Specifies dtype of transformed/encoded data.
+        """
+        return np.dtype("int")
+
     @check(checks=[checks.check_is_series, checks.check_is_datetime])
     def fit(self, X: pd.Series, y=None):
         """Fits transformer with input data.
