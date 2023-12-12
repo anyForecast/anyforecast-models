@@ -1,7 +1,7 @@
 import unittest
 
 import pandas as pd
-from sklearn.compose import make_column_transformer
+from sklearn.compose import make_column_transformer, ColumnTransformer
 from sklearn.preprocessing import MinMaxScaler, OneHotEncoder, StandardScaler
 
 from deepts.preprocessing.compose import (
@@ -13,13 +13,13 @@ from deepts.preprocessing.compose import (
 class TestPandasColumnTransformer(unittest.TestCase):
     def setUp(self):
         """Sets input data X and a `PandasColumnTransformer` instance."""
-        
+
         data = {
             "c1": [1.0, 2.0, 3.0],
             "c2": [4.0, 5.0, 6.0],
             "c3": ["yellow", "red", "blue"],
         }
-        
+
         self.X = pd.DataFrame(data)
 
         transformers = [
@@ -35,6 +35,10 @@ class TestPandasColumnTransformer(unittest.TestCase):
 
     def fit_transform(self) -> pd.DataFrame:
         return self.ct.fit_transform(self.X)
+
+    def test_fit(self):
+        self.ct.fit(self.X)
+        assert isinstance(self.ct.column_transformer_, ColumnTransformer)
 
     def test_fit_transform(self):
         Xt = self.fit_transform().round(decimals=3)
@@ -81,14 +85,16 @@ class TestGroupedColumnTransformer(unittest.TestCase):
         )
         self.ct = GroupedColumnTransformer(ct, group_cols=["id"])
 
-
     def fit_transform(self) -> pd.DataFrame:
         return self.ct.fit_transform(self.X)
-    
+
+    def test_fit(self):
+        self.ct.fit(self.X)
+        assert self.ct.column_transformers_
+        assert len(self.ct.column_transformers_) == 2
 
     def test_fit_transform(self):
         Xt = self.fit_transform().round(decimals=3)
-
         expected_data = {
             "id": [0, 0, 0, 1, 1, 1],
             "c1": [0.000, 0.500, 1.000, 0.000, 1.000, 0.040],
@@ -97,20 +103,15 @@ class TestGroupedColumnTransformer(unittest.TestCase):
             "c3_red": [0.0, 1.0, 0.0, 0.0, 1.0, 0.0],
             "c3_yellow": [1.0, 0.0, 0.0, 0.0, 0.0, 1.0],
         }
-        
+
         expected_frame = pd.DataFrame(expected_data)
         assert Xt.equals(expected_frame)
 
-
     def test_inverse_transform(self):
-        cols = ["id", "c1", "c2", "c3"]
-        
         Xt = self.fit_transform()
         Xi = self.ct.inverse_transform(Xt)
+        assert len(Xi.columns) == len(self.X.columns)
 
-        Xi = Xi[cols].round(3)
-        X = self.X[cols].round(3)
-        
+        Xi = Xi[self.X.columns].round(3)
+        X = self.X.round(3)
         assert X.equals(Xi)
-
-        

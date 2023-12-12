@@ -9,9 +9,6 @@ def _identity(X):
 class IdentityTransformer(Transformer):
     """Identity Transformer"""
 
-    def __init__(self):
-        pass
-
     def fit(self, X, y=None):
         return self
 

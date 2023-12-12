@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import inspect
 from copy import deepcopy
 from dataclasses import asdict, dataclass
@@ -8,7 +10,8 @@ import torch
 from pytorch_forecasting.data import encoders, timeseries
 from torch.utils.data import Dataset as TorchDataset
 
-from deepts.preprocessing import IdentityTransformer, Transformer
+from deepts import base
+from deepts.preprocessing import IdentityTransformer
 
 
 @dataclass
@@ -148,7 +151,7 @@ class TimeseriesDataset(TorchDataset):
         time_varying_unknown_reals: list[str] | None = None,
         randomize_length: None | tuple[float, float] | bool = False,
         add_encoder_length: bool = True,
-        categorical_encoders: dict[str, Transformer] | None = None,
+        categorical_encoders: dict[str, base.Transformer] | None = None,
         predict_mode: bool = False,
     ):
         self.time_idx = time_idx
@@ -212,7 +215,7 @@ class TimeseriesDataset(TorchDataset):
             scalers=self.get_default_scalers(),
             categorical_encoders=self.categorical_encoders,
             predict_mode=self.predict_mode,
-            **self.features.as_dict()
+            **self.features.as_dict(),
         )
 
     def get_parameters(self) -> dict[str, Any]:
@@ -239,7 +242,7 @@ class TimeseriesDataset(TorchDataset):
     @classmethod
     def from_parameters(
         cls, parameters: dict[str, Any], data: pd.DataFrame, **kwargs
-    ) -> "TimeseriesDataset":
+    ) -> TimeseriesDataset:
         """Generate dataset with different underlying data but same variable
         encoders and scalers, etc.
 
