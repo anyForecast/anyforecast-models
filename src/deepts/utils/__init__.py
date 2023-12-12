@@ -1,17 +1,4 @@
-"""skorch_forecasting utilities.
+"""deepts utilities.
 
-Should not have any dependency on other skorch_forecasting packages.
+Should not have any dependency on other deepts packages.
 """
-from . import (
-    data,
-    datetime,
-    validation,
-    rnn
-)
-
-__all__ = [
-    'data',
-    'datetime',
-    'validation',
-    'rnn'
-]

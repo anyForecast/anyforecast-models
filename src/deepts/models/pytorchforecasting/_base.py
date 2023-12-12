@@ -5,7 +5,7 @@ import torch
 
 from deepts.data import TimeseriesDataset
 
-from . import _base
+from .. import _base
 
 
 def _output_class(net=None, **res):
@@ -82,7 +82,7 @@ class PyTorchForecastingCollateFn:
         return {"x": X}, y
 
 
-class PFNeuralNet(_base.TimeseriesNeuralNet):
+class PytorchForecastingNeuralNet(_base.TimeseriesNeuralNet):
     """Base class for pytorch_forecasting models that collects common
     methods between them.
 
