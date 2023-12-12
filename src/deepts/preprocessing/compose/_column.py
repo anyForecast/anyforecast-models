@@ -153,11 +153,4 @@ class PandasColumnTransformer(Transformer):
         self.check_is_fitted()
         resolver = OutputDTypesResolver(self.column_transformer_)
         feature_dtypes_out = resolver.resolve(self.feature_dtypes_in_)
-
-        # Map int dtypes to floats.
-        feature_dtypes_out = {
-            k: np.dtype("float") if _is_int(dtype) else dtype
-            for k, dtype in feature_dtypes_out.items()
-        }
-
         return feature_dtypes_out
