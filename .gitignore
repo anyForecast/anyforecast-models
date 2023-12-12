@@ -55,7 +55,6 @@ Thumbs.db
 .ipynb_checkpoints
 
 
-*.csv
 *.ipynb
 env/
 venv/
