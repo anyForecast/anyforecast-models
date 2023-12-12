@@ -8,7 +8,8 @@ from sklearn.preprocessing import MinMaxScaler, OneHotEncoder
 
 from deepts.base import Transformer
 
-from . import _encoders, compose
+from ._encoders import TimeIndexEncoder
+from .compose import GroupedColumnTransformer, PandasColumnTransformer
 
 __all__ = ("make_preprocessor",)
 
@@ -29,10 +30,10 @@ def make_categorical_selector(pattern: str | None = None) -> callable:
 
 def make_timestamp_transformer(
     timestamp: str, freq: str
-) -> compose.PandasColumnTransformer:
-    transformers = [(_encoders.TimeIndexEncoder(freq=freq), timestamp)]
+) -> PandasColumnTransformer:
+    transformers = [(TimeIndexEncoder(freq=freq), timestamp)]
     ct = make_sk_column_transformer(transformers)
-    return compose.PandasColumnTransformer(ct)
+    return PandasColumnTransformer(ct)
 
 
 def make_features_transformer(
@@ -40,21 +41,21 @@ def make_features_transformer(
     target: str,
     scaler: Transformer,
     encoder: Transformer,
-) -> compose.GroupedColumnTransformer:
+) -> GroupedColumnTransformer:
     pattern = f"^(?!{target}).*$"  # Exclude ``target`` from selection.
     num_selector = make_numeric_selector(pattern)
     cat_selector = make_categorical_selector()
     transformers = [(scaler, num_selector), (encoder, cat_selector)]
     ct = make_sk_column_transformer(transformers)
-    return compose.GroupedColumnTransformer(ct, group_cols=group_ids)
+    return GroupedColumnTransformer(ct, group_cols=group_ids)
 
 
 def make_target_transformer(
     group_ids: str | list[str], target: str, scaler: Transformer
-) -> compose.GroupedColumnTransformer:
+) -> GroupedColumnTransformer:
     transformers = [(scaler, [target])]
     ct = make_sk_column_transformer(transformers)
-    return compose.GroupedColumnTransformer(ct, group_cols=group_ids)
+    return GroupedColumnTransformer(ct, group_cols=group_ids)
 
 
 def make_preprocessor(
