@@ -12,14 +12,18 @@ from ._wrapper import ColumnTransformerWrapper
 
 
 class NonInverseBehavior(Protocol):
+    """Interface behavior for non inverse transformers."""
+
     def __call__(self, X, name: str, trans: base.Transformer) -> Any: ...
 
 
 def _ignore_behavior(X, name, trans) -> np.ndarray:
+    """Ignore behavior for non inverse transformers."""
     return np.ndarray(shape=(len(X), 0))
 
 
 def _raise_behavior(X, name, trans):
+    """Raise behavior for non inverse transformers."""
     raise AttributeError(
         f"Transformer {name} (type {type(trans).__name__}) does "
         "not provide `inverse_transform` method."

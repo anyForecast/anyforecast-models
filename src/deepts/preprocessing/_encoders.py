@@ -53,7 +53,7 @@ class CosineTransformer(Transformer):
 class CyclicalEncoder(Transformer):
     """Cyclical encoder.
 
-    Encodes periodic features using a sine and cosine transformation with the
+    Encodes periodic features using sine and cosine transformations with the
     matching period.
 
     Parameters
@@ -136,7 +136,7 @@ class CyclicalDatetimeEncoder(Transformer):
 
         return np.hstack(transforms)
 
-    def get_feature_names_out(self, input_features=None):
+    def get_feature_names_out(self, input_features=None) -> np.ndarray:
         """Get output feature names for transformation
 
         Returns
@@ -144,9 +144,10 @@ class CyclicalDatetimeEncoder(Transformer):
         feature_names_out : list of str
             Transformed feature names.
         """
-        return np.concatenate(
-            [v.get_feature_names_out() for _, v in self.mapping_.items()]
-        )
+        features_out = [
+            v.get_feature_names_out() for _, v in self.encoders_.items()
+        ]
+        return np.concatenate(features_out)
 
 
 class TimeIndexEncoder(Transformer):
@@ -167,8 +168,7 @@ class TimeIndexEncoder(Transformer):
 
     @property
     def dtype(self) -> np.dtype:
-        """Specifies dtype of transformed/encoded data.
-        """
+        """Specifies dtype of transformed/encoded data."""
         return np.dtype("int")
 
     @check(checks=[checks.check_is_series, checks.check_is_datetime])
@@ -184,7 +184,7 @@ class TimeIndexEncoder(Transformer):
         time_index = self.make_time_index(date_range)
         self.encoding_ = dict(zip(date_range, time_index))
 
-        self.feature_names_out_ = np.array([X.name])
+        self.feature_names_in_ = np.array([X.name])
         return self
 
     @check(
@@ -204,9 +204,9 @@ class TimeIndexEncoder(Transformer):
 
     @sklearn_validate(reset=False)
     @check(checks=[checks.check_1_feature], check_is_fitted=True)
-    def inverse_transform(self, X: np.ndarray) -> pd.Series:
+    def inverse_transform(self, X: np.ndarray) -> np.ndarray:
         X: pd.Series = pd.Series(X.flatten())
-        return X.map(self.inverse_encoding)
+        return X.map(self.inverse_encoding).values.reshape(-1, 1)
 
     @property
     def inverse_encoding(self) -> dict:
@@ -234,4 +234,4 @@ class TimeIndexEncoder(Transformer):
 
     def get_feature_names_out(self, input_features=None) -> np.ndarray:
         self.check_is_fitted()
-        return self.feature_names_out_
+        return self.feature_names_in_

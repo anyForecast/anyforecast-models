@@ -13,25 +13,6 @@ from ._dtypes import OutputDTypesResolver
 from ._inverse import ColumnTransformerInverseTransform
 
 
-def _is_int(dtype: np.dtype) -> bool:
-    """Checks if given dtype is int.
-
-    Parameters
-    ----------
-    dtype : np.dtype
-
-    Returns
-    -------
-    bool
-    """
-    int_dtypes = [int, np.dtype("int64"), np.dtype("int32"), np.dtype("int16")]
-
-    for int_dtype in int_dtypes:
-        if int_dtype == dtype:
-            return True
-    return False
-
-
 class PandasColumnTransformer(Transformer):
     """Pandas wrapper for sklearn :class:`ColumnTransformer`.
 

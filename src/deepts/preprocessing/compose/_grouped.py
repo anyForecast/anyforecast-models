@@ -69,7 +69,7 @@ class GroupedColumnTransformer(Transformer):
         """
         self.column_transformers_: dict[str, PandasColumnTransformer] = {}
 
-        groupby = X.groupby(self.group_cols, group_keys=True)
+        groupby = X.groupby(self.group_cols, group_keys=True, observed=False)
         for group_name in groupby.groups:
             column_transformer = self.make_column_transformer()
             group = groupby.get_group(group_name)
@@ -110,7 +110,7 @@ class GroupedColumnTransformer(Transformer):
         Xt : pd.DataFrame.
             Transformed dataframe
         """
-        groupby = X.groupby(self.group_cols, group_keys=True)
+        groupby = X.groupby(self.group_cols, group_keys=True, observed=False)
 
         def apply_fn(group: pd.DataFrame) -> pd.DataFrame:
             """Applies transformation function to a single group.

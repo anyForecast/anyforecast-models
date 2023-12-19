@@ -186,9 +186,10 @@ class TimeseriesDataset(TorchDataset):
         self.categorical_encoders = (
             categorical_encoders or self.get_default_encoders()
         )
-        self._pytorch_forecasting_ds = self._create_pytorch_forecasting_ds(data)
 
-    def _create_pytorch_forecasting_ds(
+        self.pf_ds = self.create_pytorchforecasting(data)
+
+    def create_pytorchforecasting(
         self, data: pd.DataFrame
     ) -> timeseries.TimeSeriesDataSet:
         """Creates pytorch-forecasting :class:`timeseries.TimeSeriesDataset`.
@@ -218,6 +219,10 @@ class TimeseriesDataset(TorchDataset):
             **self.features.as_dict(),
         )
 
+    def get_pytorchforecasting(self) -> timeseries.TimeSeriesDataSet:
+        """Returns the associated pytorch-forecasting dataset"""
+        return self.pf_ds
+
     def get_parameters(self) -> dict[str, Any]:
         """Get parameters that can be used with :py:meth:`~from_parameters` to
         create a new dataset with the same scalers.
@@ -226,18 +231,14 @@ class TimeseriesDataset(TorchDataset):
         -------
         Dict[str, Any]: dictionary of parameters
         """
-        kwargs = {
+        init_signature = inspect.signature(self.__class__.__init__)
+        to_exclude = ("self", "data")
+
+        return {
             name: getattr(self, name)
-            for name in inspect.signature(
-                self.__class__.__init__
-            ).parameters.keys()
-            if name not in ["self", "data"]
+            for name in init_signature.parameters.keys()
+            if name not in to_exclude
         }
-
-        return kwargs
-
-    def get_pytorch_forecasting_ds(self) -> timeseries.TimeSeriesDataSet:
-        return self._pytorch_forecasting_ds
 
     @classmethod
     def from_parameters(
@@ -259,11 +260,11 @@ class TimeseriesDataset(TorchDataset):
         self, idx: int
     ) -> tuple[dict[str, torch.Tensor], torch.Tensor]:
         """Returns data sample."""
-        return self._pytorch_forecasting_ds[idx]
+        return self.pf_ds[idx]
 
     def __len__(self):
         """Returns dataset length."""
-        return len(self._pytorch_forecasting_ds)
+        return len(self.pf_ds)
 
     def get_default_scalers(self) -> dict[str, IdentityTransformer]:
         """Returns dictionary from real variable (excluding target) to

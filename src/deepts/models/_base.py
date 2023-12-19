@@ -8,28 +8,30 @@ import pandas as pd
 import skorch
 import torch
 
+from deepts.adapters import SkorchAdapter
 from deepts.base import Transformer
-from deepts.data import SliceDataset, TimeseriesDataset
+from deepts.data import TimeseriesDataset
+from deepts.models._output_trans import OutputToPandasTransformer
 
 
-class InitParameterInference:
-    """Infers __init__ parameters.
+class InitParams:
+    """Infers __init__ parameters from the given context.
 
     Parameters
     ----------
     context : Any
-        Context object from which __init__ parameters values will be inferred.
+        Context object from which init parameters values will be inferred.
 
     kwargs : key-word arguments
-        Additional arguments from which to also infer __init__ parameters.
+        Additional arguments from which to also infer init parameters.
     """
 
     def __init__(self, context: Any, **kwargs):
         self.context = context
         self.kwargs = kwargs
 
-    def infer(self, cls: Type[Any]) -> dict:
-        """Infers __init__ parameters for ``cls``.
+    def get(self, cls: Type[Any]) -> dict:
+        """Infers cls init parameters from the given context.
 
         Parameters
         ----------
@@ -68,7 +70,7 @@ class InitParameterInference:
         }
 
 
-class TimeseriesNeuralNet(Transformer):
+class TimeseriesNeuralNet(Transformer, SkorchAdapter):
     """Base class for time series neural nets.
 
     In addition to the parameters listed below, there are parameters
@@ -241,7 +243,8 @@ class TimeseriesNeuralNet(Transformer):
         device: Literal["cpu", "cuda"] = "cpu",
         train_split: callable | None = None,
         callbacks: list | None = None,
-        dataset=TimeseriesDataset,
+        dataset: Type[TimeseriesDataset] = TimeseriesDataset,
+        output_transformer: OutputToPandasTransformer | None = None,
         **prefix_kwargs,
     ):
         self.module = module
@@ -270,10 +273,9 @@ class TimeseriesNeuralNet(Transformer):
         self.min_encoder_length = min_encoder_length
         self.min_prediction_length = min_prediction_length
         self.callbacks = callbacks
+        self.output_transformer = output_transformer
         self.prefix_kwargs = prefix_kwargs
-
-        self.initialized_ = False
-        self._parameters_inference = InitParameterInference(self)
+        self._initialized = False
 
     def _get_param_names(self):
         """This method has been overriden since the one from super ignores
@@ -288,7 +290,7 @@ class TimeseriesNeuralNet(Transformer):
         to_exclude = {"module", "dataset"}
         return {k: v for k, v in params.items() if k not in to_exclude}
 
-    def get_prefix_kwargs(self, prefix) -> dict:
+    def get_prefix_kwargs(self, prefix: str) -> dict:
         """Extracts kwargs containing the given prefix.
 
         This is useful for obtaining parameters that belong to a submodule.
@@ -324,7 +326,7 @@ class TimeseriesNeuralNet(Transformer):
         -------
         init_kwargs : dict
         """
-        return self._parameters_inference.infer(cls)
+        return InitParams(self).get(cls)
 
     def get_kwargs_for(self, name: str, ignore: tuple = ()) -> dict:
         """Collects __init__ kwargs for an attribute.
@@ -353,9 +355,7 @@ class TimeseriesNeuralNet(Transformer):
         kwargs = {**init_kwargs, **prefix_kwargs}
         return {k: v for k, v in kwargs.items() if k not in ignore}
 
-    def fit(
-        self, X: pd.DataFrame | TimeseriesDataset, y: None = None, **fit_params
-    ) -> TimeseriesNeuralNet:
+    def fit(self, X: pd.DataFrame | TimeseriesDataset, y: None = None):
         """Initializes and fits the module.
 
         If the module was already initialized, by calling fit, the module
@@ -372,14 +372,14 @@ class TimeseriesNeuralNet(Transformer):
 
         Returns
         -------
-        self : NeuralNetEstimator
+        self (object)
         """
-        ds = self.get_dataset(X)
+        X = self.get_dataset(X)
 
-        if not self.initialized_:
-            self._initialize(ds)
+        if not self._initialized:
+            self._initialize(X)
 
-        self.skorch_.fit(ds, y, **fit_params)
+        self._skorch.fit(X, y)
 
         return self
 
@@ -388,15 +388,15 @@ class TimeseriesNeuralNet(Transformer):
 
         self.dataset_params_ = ds.get_parameters()
         self.module_ = self._initialize_module(ds)
-        self.skorch_ = self._initialize_skorch()
+        self._init_skorch_object()
 
-        self.initialized_ = True
+        self._initialized = True
 
     def predict(
         self,
         X: pd.DataFrame | TimeseriesDataset,
         return_dataset: bool = False,
-    ) -> np.ndarray:
+    ) -> np.ndarray | tuple[np.ndarray, TimeseriesDataset]:
         """Predicts input data X.
 
         Parameters
@@ -405,20 +405,45 @@ class TimeseriesNeuralNet(Transformer):
             Input values.
 
         return_dataset : bool, default=False
-            If True, predict dataset is also returned.
+            If True, input dataset is also returned.
 
         Returns
         -------
-        output : np.array.
-            Predicted values.
+        output : np.ndarray.
+            Raw predicted values.
         """
         self.check_is_fitted()
         dataset = self.get_predict_dataset(X)
-        output = self.skorch_.predict(dataset)
+        output = self._skorch.predict(dataset)
 
         if return_dataset:
             return output, dataset
         return output
+
+    def transform(self, X: pd.DataFrame | TimeseriesDataset) -> pd.DataFrame:
+        """Predicts and transforms input data.
+
+        Predictions are transformed using the configured ``output_transformer``.
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            Input values.
+
+        Returns
+        -------
+        trans_output : object
+            Output after transformation.
+        """
+        if self.output_transformer is None:
+            output_transformer = OutputToPandasTransformer(
+                group_cols=self.group_ids,
+                output_col=self.target,
+                time_idx_col=self.time_idx,
+            )
+
+        output, ds = self.predict(X, return_dataset=True)
+        return output_transformer.transform(output, ds.pf_ds.decoded_index)
 
     def get_predict_dataset(self, X: pd.DataFrame) -> TimeseriesDataset:
         """Returns dataset in prediction mode.
@@ -469,12 +494,6 @@ class TimeseriesNeuralNet(Transformer):
         dataset_params.update(kwargs)
         return self.dataset(X, **dataset_params)
 
-    def get_slice_dataset(
-        self, X: pd.DataFrame, params: dict | None = None, **kwargs
-    ):
-        dataset = self.get_dataset(X, params, **kwargs)
-        return SliceDataset(dataset)
-
     def get_history(
         self, name: str, step_every: Literal["batch", "epoch"] = "epoch"
     ) -> list:
@@ -493,11 +512,11 @@ class TimeseriesNeuralNet(Transformer):
         """
         self.check_is_fitted()
         if step_every == "epoch":
-            history = self.skorch_.history_[:, name]
+            history = self._skorch.history_[:, name]
 
         elif step_every == "batch":
             history = []
-            for epoch in self.skorch_.history_:
+            for epoch in self._skorch.history_:
                 for batch in epoch["batches"]:
                     if batch:
                         val = batch[name]
@@ -508,15 +527,16 @@ class TimeseriesNeuralNet(Transformer):
 
         return history
 
-    def _initialize_skorch(self) -> skorch.NeuralNet:
-        """Initializes skorch :class:`NeuralNet`.
+    def _get_skorch_object(self) -> skorch.NeuralNet:
+        """Instantiates skorch :class:`NeuralNet`.
 
         Returns
         -------
         models : skorch.NeuralNet
             Initialized skorch neural net.
         """
-        return skorch.NeuralNet(
+        cls = self._get_skorch_class()
+        return cls(
             module=self.module_,
             criterion=self.criterion,
             optimizer=self.optimizer,
