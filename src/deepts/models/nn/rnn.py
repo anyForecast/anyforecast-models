@@ -92,7 +92,7 @@ class ConditionalRNN(torch.nn.Module):
         Returns
         -------
         context : torch.Tensor
-            Preprocessed context tensor of shape 
+            Preprocessed context tensor of shape
             (num_layers, batch_size, in_context_features)
         """
         # Unsqueeze.

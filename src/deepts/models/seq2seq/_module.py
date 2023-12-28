@@ -11,13 +11,14 @@ from deepts.models.nn import embeddings, rnn
 
 
 class Seq2SeqModuleFactory(ModuleFactory):
-    """Creates an instance of :class:`Seq2SeqModule` from the passed dataset.
+    """Factory of :class:`Seq2SeqModule`.
 
+    Returns instance of :class:`Seq2SeqModule` from the passed dataset.
     Module arguments obtained from the dataset include:
-    * embedding sizes
-    * encoder feature names
-    * decoder feature names
-    * target names
+    - Embedding sizes
+    - Encoder feature names
+    - Decoder feature names
+    - Target names
     """
 
     def get_embedding_sizes(self, ds: TimeseriesDataset) -> list[tuple]:
@@ -59,9 +60,9 @@ class Seq2SeqModule(BaseModule):
     """Encoder-decoder architecture applied to time series.
 
     An encoder network condenses an input sequence into a vector,
-    and a decoder network unfolds that vector into a new sequence.
-    Additionally, an initial multi-embedding layer is used to condition the
-    encoder network with time independent/statical features.
+    and a decoder network unfolds that vector into a new sequence. Additionally,
+    an initial multi-embedding layer is used to condition the encoder network
+    with time independent/statical features.
 
     Parameters
     ----------
@@ -190,18 +191,6 @@ class Seq2SeqModule(BaseModule):
     def forward(self, x: dict[str, torch.Tensor]) -> torch.Tensor:
         """Forwards pass.
 
-        Notes
-        -----
-        1. The output from the MultiEmbedding module is used to initialize the
-        hidden state of the Encoder.
-
-        2. We directly use the hidden state at the final time step of the
-        encoder to initialize the hidden state of the decoder.
-
-        3. In addition to sharing the encoder last hidden state and to further
-        incorporate the encoded input sequence information, the last Encoder
-        output is used as first Decoder input.
-
         Parameters
         ----------
         x : dict, str -> torch.Tensor
@@ -213,7 +202,6 @@ class Seq2SeqModule(BaseModule):
         """
         encoder_output, hidden_state = self.encode(x)
         output = self.decode(x, hidden_state, encoder_output[:, -1, -1:])
-
         return output
 
     def encode(
