@@ -1,45 +1,5 @@
-from typing import Literal
-
 import torch
-from pytorch_forecasting.models.nn import rnn
-from torch import nn
-
-
-def make_rnn(
-    input_size: int,
-    hidden_size: int,
-    num_layers: int,
-    cell_type: Literal["LSTM", "GRU"] = "LSTM",
-    batch_first: bool = True,
-) -> rnn.RNN:
-    """Returns rnn cell unit.
-
-    Parameters
-    ----------
-    cell_type : str, {"LSTM", "GRU"}
-        Rnn cell unit.
-
-    input_size: int
-        Input size.
-
-    hidden_size: int
-        Hidden size.
-
-    num_layers: int
-        Number of layers.
-
-    batch_first: If ``True``, then the input and output tensors are provided
-            as `(batch, seq, feature)` instead of `(seq, batch, feature)`.
-            Note that this does not apply to hidden or cell states. See the
-            Inputs/Outputs sections below for details.  Default: ``False``
-    """
-    cls = rnn.get_rnn(cell_type)
-    return cls(
-        input_size=input_size,
-        hidden_size=hidden_size,
-        num_layers=num_layers,
-        batch_first=batch_first,
-    )
+from pytorch_forecasting.utils import nn
 
 
 def pad_sequence(

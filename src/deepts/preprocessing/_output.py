@@ -30,6 +30,7 @@ class OutputToPandasTransformer:
     def transform(
         self, output: np.ndarray, decoded_index: pd.DataFrame
     ) -> pd.DataFrame:
+        
         def create_df(output, time_idx, group_cols):
             """Creates dataframe for the current output."""
             df = pd.DataFrame(output, columns=[self.output_col])
