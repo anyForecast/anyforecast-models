@@ -40,4 +40,4 @@ class BaseModule(torch.nn.Module):
                 f"`factory` for module {cls.__name__} is not implemented."
             )
 
-        return cls.factory.create(ds, **kwargs)
+        return cls.factory(ds, **kwargs)

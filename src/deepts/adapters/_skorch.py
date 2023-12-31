@@ -19,7 +19,7 @@ class SkorchAdapter:
         return skorch.NeuralNet
 
     def _get_skorch_object(self) -> object:
-        """Abstract method to initialize tslearn object.
+        """Abstract method to initialize skorch object.
 
         The default initializes result of _get_skorch_class
         with self.get_params.

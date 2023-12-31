@@ -3,7 +3,7 @@ import pandas as pd
 from sklearn.compose import ColumnTransformer
 
 from deepts.base import Transformer
-from deepts.decorators import check, check_cols
+from deepts.decorators import MultiCheck, CheckCols
 from deepts.utils import checks
 
 from ._column import PandasColumnTransformer
@@ -45,8 +45,8 @@ class GroupedColumnTransformer(Transformer):
         self.column_transformer = column_transformer
         self.group_cols = group_cols
 
-    @check_cols(cols="group_cols")
-    @check(checks=[checks.check_is_frame])
+    @CheckCols(cols_attr="group_cols")
+    @MultiCheck(checks=[checks.check_is_frame])
     def fit(self, X: pd.DataFrame, y=None):
         """Fits a :class:`ColumnTransformer` object to each group inside X.
 
@@ -89,8 +89,8 @@ class GroupedColumnTransformer(Transformer):
             self._pandas_ct = PandasColumnTransformer(self.column_transformer)
         return self._pandas_ct.clone()
 
-    @check_cols(cols="group_cols")
-    @check(checks=[checks.check_is_frame], check_is_fitted=True)
+    @CheckCols(cols_attr="group_cols")
+    @MultiCheck(checks=[checks.check_is_frame], check_is_fitted=True)
     def _groupwise_transform(
         self, X: pd.DataFrame, inverse: bool = False
     ) -> pd.DataFrame:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import inspect
 from copy import deepcopy
 from typing import Any
@@ -11,6 +12,60 @@ from torch.utils.data import Dataset as TorchDataset
 
 from deepts import base
 from deepts.preprocessing import IdentityTransformer
+
+
+@dataclasses.dataclass
+class TimeseriesFeatures:
+    """Recipient for time series features."""
+
+    target: str | list[str]
+    static_categoricals: list[str]
+    static_reals: list[str]
+    time_varying_known_categoricals: list[str]
+    time_varying_known_reals: list[str]
+    time_varying_unknown_categoricals: list[str]
+    time_varying_unknown_reals: list[str]
+
+    def dict(self) -> dict[str, list]:
+        return dataclasses.asdict(self)
+
+    @property
+    def target_names(self) -> list[str]:
+        """Returns list of target names.
+
+        Returns
+        -------
+        list of str
+        """
+        return self.target if isinstance(self.target, list) else [self.target]
+
+    @property
+    def reals(self) -> list[str]:
+        """Continuous variables as used for modelling.
+
+        Returns
+        -------
+        List[str]: list of variables
+        """
+        return (
+            self.static_reals
+            + self.time_varying_known_reals
+            + self.time_varying_unknown_reals
+        )
+
+    @property
+    def categoricals(self) -> list[str]:
+        """Categorical variables as used for modelling.
+
+        Returns
+        -------
+        List[str]: list of variables
+        """
+        return (
+            self.static_categoricals
+            + self.time_varying_known_categoricals
+            + self.time_varying_unknown_categoricals
+        )
 
 
 class TimeseriesDataset(TorchDataset):
@@ -94,65 +149,46 @@ class TimeseriesDataset(TorchDataset):
         self.min_encoder_length = min_encoder_length
         self.min_prediction_length = min_prediction_length
         self.max_prediction_length = max_prediction_length
-        self.static_categoricals = static_categoricals or []
-        self.static_reals = static_reals or []
-        self.time_varying_known_categoricals = (
-            time_varying_known_categoricals or []
-        )
-        self.time_varying_known_reals = time_varying_known_reals or []
+        self.static_categoricals = static_categoricals
+        self.static_reals = static_reals
+        self.time_varying_known_categoricals = time_varying_known_categoricals
+        self.time_varying_known_reals = time_varying_known_reals
         self.time_varying_unknown_categoricals = (
-            time_varying_unknown_categoricals or []
+            time_varying_unknown_categoricals
         )
-        self.time_varying_unknown_reals = time_varying_unknown_reals or []
+        self.time_varying_unknown_reals = time_varying_unknown_reals
         self.randomize_length = randomize_length
         self.add_encoder_length = add_encoder_length
         self.predict_mode = predict_mode
-
+        self.features = self.create_ts_features()
         self.categorical_encoders = (
             categorical_encoders or self.get_default_encoders()
         )
-
-        self.pfds = self.create_pytorchforecasting(data)
-
-    @property
-    def target_names(self) -> list[str]:
-        """Returns list of target names.
-
-        Returns
-        -------
-        list of str
-        """
-        return self.target if isinstance(self.target, list) else [self.target]
+        self._pyforecasting_dataset = self.create_pyforecasting_dataset(data)
 
     @property
-    def reals(self) -> list[str]:
-        """Continuous variables as used for modelling.
+    def decoded_index(self) -> pd.DataFrame:
+        """Returns pytorchforecasting decoded index."""
+        self._pyforecasting_dataset.decoded_index
 
-        Returns
-        -------
-        List[str]: list of variables
-        """
-        return (
-            self.static_reals
-            + self.time_varying_known_reals
-            + self.time_varying_unknown_reals
+    @property
+    def data(self) -> dict[str, torch.Tensor]:
+        return self._pyforecasting_dataset.data
+
+    def create_ts_features(self) -> TimeseriesFeatures:
+        return TimeseriesFeatures(
+            target=self.target,
+            static_categoricals=self.static_categoricals or [],
+            static_reals=self.static_reals or [],
+            time_varying_known_categoricals=self.time_varying_known_categoricals
+            or [],
+            time_varying_known_reals=self.time_varying_known_reals or [],
+            time_varying_unknown_categoricals=self.time_varying_unknown_categoricals
+            or [],
+            time_varying_unknown_reals=self.time_varying_unknown_reals or [],
         )
 
-    @property
-    def categoricals(self) -> list[str]:
-        """Categorical variables as used for modelling.
-
-        Returns
-        -------
-        List[str]: list of variables
-        """
-        return (
-            self.static_categoricals
-            + self.time_varying_known_categoricals
-            + self.time_varying_unknown_categoricals
-        )
-
-    def create_pytorchforecasting(
+    def create_pyforecasting_dataset(
         self, data: pd.DataFrame
     ) -> timeseries.TimeSeriesDataSet:
         """Creates pytorch-forecasting :class:`timeseries.TimeSeriesDataset`.
@@ -165,7 +201,7 @@ class TimeseriesDataset(TorchDataset):
             self.add_encoder_length
             and "encoder_length" not in self.features.reals
         ):
-            self.static_reals.append("encoder_length")
+            self.features.static_reals.append("encoder_length")
 
         return timeseries.TimeSeriesDataSet(
             data=data,
@@ -179,14 +215,8 @@ class TimeseriesDataset(TorchDataset):
             scalers=self.get_default_scalers(),
             categorical_encoders=self.categorical_encoders,
             predict_mode=self.predict_mode,
-            **self.features.as_dict(),
+            **self.features.dict(),
         )
-
-    @property
-    def decoded_index(self) -> pd.DataFrame:
-        """Returns pytorch-forecasting decoded index.
-        """
-        self.pfds.decoded_index
 
     def get_parameters(self) -> dict[str, Any]:
         """Get parameters that can be used with :py:meth:`~from_parameters` to
@@ -225,11 +255,11 @@ class TimeseriesDataset(TorchDataset):
         self, idx: int
     ) -> tuple[dict[str, torch.Tensor], torch.Tensor]:
         """Returns data sample."""
-        return self.pfds[idx]
+        return self._pyforecasting_dataset[idx]
 
     def __len__(self):
         """Returns dataset length."""
-        return len(self.pfds)
+        return len(self._pyforecasting_dataset)
 
     def get_default_scalers(self) -> dict[str, IdentityTransformer]:
         """Returns dictionary from real variable (excluding target) to
@@ -241,8 +271,8 @@ class TimeseriesDataset(TorchDataset):
         """
         return {
             r: IdentityTransformer()
-            for r in self.reals
-            if r not in self.target_names
+            for r in self.features.reals
+            if r not in self.features.target_names
         }
 
     def get_default_encoders(self) -> dict[str, encoders.NaNLabelEncoder]:
@@ -254,5 +284,5 @@ class TimeseriesDataset(TorchDataset):
         """
         return {
             cat: encoders.NaNLabelEncoder(warn=True)
-            for cat in self.categoricals
+            for cat in self.features.categoricals
         }

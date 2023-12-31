@@ -2,6 +2,27 @@ import torch
 from torch import nn
 
 
+def get_embedding_size(n: int, max_size: int = 100) -> int:
+    """Determine empirically good embedding sizes (formula taken from fastai).
+
+    Parameters
+    ----------
+    n : int
+        Number of classes.
+
+    max_size : int
+        Maximum embedding size. Defaults to 100.
+
+    Returns
+    -------
+    embedding_size : int
+    """
+    if n > 2:
+        return min(round(1.6 * n**0.56), max_size)
+    else:
+        return 1
+
+
 class MultiEmbedding(nn.Module):
     """MultiEmbedding layer.
 
@@ -10,8 +31,8 @@ class MultiEmbedding(nn.Module):
 
     Parameters
     ----------
-    sizes : list of tuple
-        List of embedding and categorical sizes.
+    embedding_sizes : list of tuple
+        List of categorical and embedding sizes.
         For example, ``[(10, 3), (20, 2)]`` indicates that the first categorical
         variable has 10 unique values which are mapped to 3 embedding
         dimensions. Similarly for the second.
@@ -44,7 +65,7 @@ class MultiEmbedding(nn.Module):
 
     def init_embeddings(self):
         """Initializes :class:`torch.nn.Embedding` modules."""
-        self.embeddings = nn.ModuleDict()
+        self.embeddings: dict[str, nn.Embedding] = nn.ModuleDict()
 
         for i, embedding_sizes in enumerate(self.embedding_sizes):
             num_embeddings, embedding_dim = embedding_sizes

@@ -1,10 +1,12 @@
-import numpy as np
-import pandas as pd
 import unittest
 
+import numpy as np
+import pandas as pd
+from numpy.testing import assert_array_equal
+
 from deepts.preprocessing import (
-    CyclicalEncoder,
     CyclicalDatetimeEncoder,
+    CyclicalEncoder,
     TimeIndexEncoder,
 )
 
@@ -20,7 +22,7 @@ class TestCyclicalEncoder(unittest.TestCase):
         assert encoder.n_features_in_ == 1
         assert encoder.get_feature_names_out() is None
 
-    def test_fit_transform_pandas_(self):
+    def test_fit_transform_pandas(self):
         periodic_signal = [1, 2, 3] * 3
         periodic_signal = np.array(periodic_signal).reshape(-1, 1)
 
@@ -66,24 +68,45 @@ class TestCyclicalDatetimeEncoder(unittest.TestCase):
 
 
 class TestTimeIndexEncoder(unittest.TestCase):
-    def test_fit_transform(self):
-        freq = "W"
-        dti = pd.date_range("2018-01-01", periods=20, freq=freq)
-        X = pd.Series(dti)
+    def test_fit_transform_numpy(self):
 
+        # Create Numpy array
+        freq = "W"
+        dti = pd.date_range("2018-01-01", periods=3, freq=freq)
+        X = dti.values.reshape(-1, 1)
+
+        # Fit transform encoder
         encoder = TimeIndexEncoder(freq=freq)
         Xt = encoder.fit_transform(X)
 
-        assert encoder.encoding_
-        assert Xt.shape == (20, 1)
+        # Assert
+        assert_array_equal(Xt, [[0], [1], [2]])
+
+    def test_fit_transform_pandas(self):
+
+        # Create Pandas DataFrame
+        freq = "W"
+        dti = pd.date_range("2018-01-01", periods=3, freq=freq)
+        X = dti.to_frame(index=False)
+        X = X.rename(columns={0: "date"})
+
+        # Fit transform encoder
+        encoder = TimeIndexEncoder(freq=freq)
+        Xt = encoder.fit_transform(X)
+
+        # Assert
+        assert encoder.feature_names_in_.item() == "date"
+        assert_array_equal(Xt, [[0], [1], [2]])
 
     def test_inverse_transform(self):
+
+        # Create Numpy array
         freq = "W"
-        dti = pd.date_range("2018-01-01", periods=20, freq=freq)
-        X = pd.Series(dti)
+        dti = pd.date_range("2018-01-01", periods=3, freq=freq)
+        X = dti.values.reshape(-1, 1)
 
         encoder = TimeIndexEncoder(freq=freq)
         Xt = encoder.fit_transform(X)
         Xi = encoder.inverse_transform(Xt)
 
-        assert X.equals(Xi)
+        assert_array_equal(X, Xi)

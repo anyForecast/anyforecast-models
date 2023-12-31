@@ -5,21 +5,15 @@ import torch
 from pytorch_forecasting.models.nn import get_rnn
 from torch.nn.modules import rnn
 
+from deepts.utils import checks
+
 HiddenState = torch.Tensor | tuple[torch.Tensor, torch.Tensor]
-
-
-def _is_lstm(rnn_unit) -> bool:
-    isinstance(rnn_unit, (rnn.LSTM, rnn.LSTMCell))
-
-
-def _is_gru(rnn_unit) -> bool:
-    isinstance(rnn_unit, (rnn.GRU, rnn.GRUCell))
 
 
 def make_rnn(
     input_size: int,
     hidden_size: int,
-    num_layers: int,
+    num_layers: int = 1,
     cell_type: Literal["LSTM", "GRU"] = "LSTM",
     dropout: float = 0,
     batch_first: bool = True,
@@ -70,17 +64,19 @@ class ConditionalRNN(torch.nn.Module):
         Number of context/conditional features.
     """
 
-    def __init__(self, rnn_unit: rnn.RNNBase, in_context_features: int):
-        self.rnn_unit = rnn_unit
+    def __init__(self, rnn_cell: rnn.RNNBase, in_context_features: int):
+        super().__init__()
+        self.rnn_cell = rnn_cell
         self.in_context_features = in_context_features
+        checks.check_is_lstm_or_gru(rnn_cell)
 
         self.h0_linear = torch.nn.Linear(
             in_features=in_context_features,
-            out_features=rnn_unit.hidden_size,
+            out_features=rnn_cell.hidden_size,
         )
         self.c0_linear = torch.nn.Linear(
             in_features=in_context_features,
-            out_features=rnn_unit.hidden_size,
+            out_features=rnn_cell.hidden_size,
         )
 
     def preprocess_context(self, context: torch.Tensor) -> torch.Tensor:
@@ -108,7 +104,7 @@ class ConditionalRNN(torch.nn.Module):
         # Expand.
         # Expand first dimension to the number of hidden layers.
         # Shape: (num_layers, batch_size, in_context_features)
-        context = context.expand(self.rnn_unit.num_layers, -1, -1)
+        context = context.expand(self.rnn_cell.num_layers, -1, -1)
 
         return context
 
@@ -127,26 +123,14 @@ class ConditionalRNN(torch.nn.Module):
         context = self.preprocess_context(context)
         h0 = self.h0_linear(context)
 
-        if _is_lstm(self.rnn_unit):
+        if checks.is_lstm(self.rnn_cell):
             c0 = self.c0_linear(context)
             initial_state = (h0, c0)
 
-        elif _is_gru(self.rnn_unit):
+        else:  # self.rnn_cell is GRU
             initial_state = h0
 
         return initial_state
-
-    def check_context(self, context: torch.Tensor, batch_size: int):
-        """Checks context data has correct shape."""
-        shape = context.shape
-        if shape[0] != batch_size:
-            raise
-
-        if shape[1] != self.in_context_features:
-            raise
-
-        if shape != 2:
-            raise
 
     def forward(
         self,
@@ -171,10 +155,9 @@ class ConditionalRNN(torch.nn.Module):
         -------
         (encoder_output, hidden_state) : tuple
         """
-        self.check_context(context, batch_size=len(input))
         hidden_state = self.get_initial_state(context)
 
-        encoder_output, hidden_state = self.rnn_unit(
+        encoder_output, hidden_state = self.rnn_cell(
             x=input,
             hx=hidden_state,
             lengths=lengths,
@@ -210,18 +193,19 @@ class AutoRegressiveRNN(torch.nn.Module):
 
     def __init__(
         self,
-        rnn_unit: rnn.RNNBase,
+        rnn_cell: rnn.RNNBase,
         teacher_forcing_ratio: float = 0.2,
         output_size: int = 1,
     ):
-        self.rnn_unit = rnn_unit
+        super().__init__()
+        self.rnn_cell = rnn_cell
         self.teacher_forcing_ratio = teacher_forcing_ratio
         self.output_size = output_size
 
         # The output layer transforms the latent representation
         # back to a single prediction.
         self.linear = torch.nn.Linear(
-            in_features=rnn_unit.hidden_size, out_features=output_size
+            in_features=rnn_cell.hidden_size, out_features=output_size
         )
 
     def use_teacher(self) -> bool:
@@ -254,14 +238,14 @@ class AutoRegressiveRNN(torch.nn.Module):
         """
 
         if self.use_teacher():
-            output, _ = self.rnn_unit(
+            output, _ = self.rnn_cell(
                 x=input,
                 hx=hidden_state,
                 lengths=lengths,
                 enforce_sorted=enforce_sorted,
             )
 
-            return self.linear(output)
+            return self.linear(output).squeeze(-1)
 
         def forward_single_step(
             index: int,
@@ -291,8 +275,8 @@ class AutoRegressiveRNN(torch.nn.Module):
             # Target values are located at ``target_index`` .
             x[..., target_index] = previous_output
 
-            step_output, hidden_state = self.rnn_unit(x, hidden_state)
-            step_output = self.linear(step_output)
+            step_output, hidden_state = self.rnn_cell(x, hidden_state)
+            step_output = self.linear(step_output).squeeze(-1)
             return step_output, hidden_state
 
         return self.autoregressive(
@@ -329,8 +313,8 @@ class AutoRegressiveRNN(torch.nn.Module):
         current_output = first_input
         current_hidden_state = first_hidden_state
 
-        # To predict the output sequence at each step, the predicted output from
-        # the previous time step is fed into the rnn as an input.
+        # At each step, the predicted output from the previous time step
+        # is fed into the rnn.
         for index in range(n_steps):
             current_output, current_hidden_state = forward_one(
                 index=index,

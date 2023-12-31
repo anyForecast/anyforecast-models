@@ -15,11 +15,18 @@ class Transformer(BaseEstimator, TransformerMixin):
         return clone(self)
 
     def validate_data(
-        self, X, reset: bool = True, force_all_finite: bool = True
+        self,
+        X,
+        reset: bool = True,
+        force_all_finite: bool = True,
+        cast_to_ndarray: bool = True,
     ) -> np.ndarray:
         """Wrapper for private sklearn data validation method."""
         return self._validate_data(
-            X, reset=reset, force_all_finite=force_all_finite
+            X,
+            reset=reset,
+            force_all_finite=force_all_finite,
+            cast_to_ndarray=cast_to_ndarray,
         )
 
     def check_is_fitted(self) -> None:

@@ -22,8 +22,15 @@ class Seq2SeqModuleFactory(ModuleFactory):
     """
 
     def get_embedding_sizes(self, ds: TimeseriesDataset) -> list[tuple]:
-        embedding_sizes = torch.max(ds.data["categoricals"], dim=0)
-        embedding_sizes = tuple(embedding_sizes.values.numpy() + 1)
+        # Get number of classes/embeddings
+        n_classes = torch.max(ds.data["categoricals"], dim=0)
+        n_classes = tuple(n_classes.values.numpy() + 1)
+
+        # Create (num_embeddings, embedding_dim) tuples.
+        embedding_sizes = [
+            (n, embeddings.get_embedding_size(n)) for n in n_classes
+        ]
+
         return embedding_sizes
 
     def get_time_varying_reals_encoder(
@@ -31,28 +38,28 @@ class Seq2SeqModuleFactory(ModuleFactory):
     ) -> list[str]:
         # All continuous variables, i.e., time_varying_known_reals,
         # time_varying_known_reals and static_reals, are encoded.
-        return ds.reals
+        return ds.features.reals
 
     def get_time_varying_reals_decoder(
         self, ds: TimeseriesDataset
     ) -> list[str]:
         # Only known variables are used for decoding.
-        return ds.time_varying_known_reals
+        return ds.features.time_varying_known_reals
 
     def get_target(self, ds: TimeseriesDataset):
-        return ds.target_names
+        return ds.features.target_names
 
-    def get_kwargs(self, ds: TimeseriesDataset, **kwargs) -> dict[str, Any]:
+    def get_kwargs(self, ds: TimeseriesDataset) -> dict[str, Any]:
         return dict(
             embedding_sizes=self.get_embedding_sizes(ds),
             time_varying_reals_encoder=self.get_time_varying_reals_encoder(ds),
             time_varying_reals_decoder=self.get_time_varying_reals_decoder(ds),
             target=self.get_target(ds),
-            **kwargs,
         )
 
     def create(self, ds: TimeseriesDataset, **kwargs) -> Seq2SeqModule:
-        kwargs = self.get_kwargs(ds, **kwargs)
+        new_kwargs = self.get_kwargs(ds)
+        kwargs.update(new_kwargs)
         return Seq2SeqModule(**kwargs)
 
 
@@ -66,8 +73,11 @@ class Seq2SeqModule(BaseModule):
 
     Parameters
     ----------
-    embedding_sizes : tuple
-        Size of each embedding table.
+    embedding_sizes : list of tuple
+        List of embedding and categorical sizes.
+        For example, ``[(10, 3), (20, 2)]`` indicates that the first categorical
+        variable has 10 unique values which are mapped to 3 embedding
+        dimensions. Similarly for the second.
 
     hidden_size : int
         Size of the context vector.
@@ -88,7 +98,7 @@ class Seq2SeqModule(BaseModule):
         Number of hidden layers.
     """
 
-    factory = Seq2SeqModuleFactory
+    factory = Seq2SeqModuleFactory()
 
     def __init__(
         self,
@@ -133,25 +143,26 @@ class Seq2SeqModule(BaseModule):
     def create_encoder(self) -> rnn.ConditionalRNN:
         """Creates Encoder."""
         return rnn.ConditionalRNN(
-            rnn_unit=self.create_rnn(input_size=self.encoder_size),
+            rnn_cell=self.create_rnn(input_size=self.encoder_size),
             in_context_features=self.multi_embedding.output_size,
         )
 
     def create_decoder(self) -> rnn.AutoRegressiveRNN:
         """Creates Decoder."""
-
         return rnn.AutoRegressiveRNN(
-            rnn_unit=self.create_rnn(input_size=self.decoder_size),
+            rnn_cell=self.create_rnn(input_size=self.decoder_size),
             teacher_forcing_ratio=self.teacher_forcing_ratio,
             output_size=1,
         )
 
     @property
     def encoder_size(self) -> int:
+        """Returns encoder input size."""
         return len(self.time_varying_reals_encoder)
 
     @property
     def decoder_size(self) -> int:
+        """Returns decoder input size."""
         return len(self.time_varying_reals_decoder + self.target)
 
     @property
