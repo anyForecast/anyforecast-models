@@ -169,7 +169,7 @@ class TimeseriesDataset(TorchDataset):
     @property
     def decoded_index(self) -> pd.DataFrame:
         """Returns pytorchforecasting decoded index."""
-        self._pyforecasting_dataset.decoded_index
+        return self._pyforecasting_dataset.decoded_index
 
     @property
     def data(self) -> dict[str, torch.Tensor]:

@@ -4,7 +4,6 @@ from typing import Any, Protocol
 import numpy as np
 import pandas as pd
 from numpy import ndarray
-from pandas.core.api import DataFrame as DataFrame
 
 from deepts.base import Transformer
 
@@ -62,7 +61,7 @@ class SklearnCheck(CheckDecorator):
     def check(
         self,
         transformer: Transformer,
-        X: ndarray | DataFrame,
+        X: ndarray | pd.DataFrame,
         *args,
         **kwargs,
     ):
@@ -81,7 +80,7 @@ class CheckCols(CheckDecorator):
     def check(
         self,
         transformer: Transformer,
-        X: ndarray | DataFrame,
+        X: ndarray | pd.DataFrame,
         *args,
         **kwargs,
     ):
@@ -101,7 +100,7 @@ class MultiCheck(CheckDecorator):
     def check(
         self,
         transformer: Transformer,
-        X: ndarray | DataFrame,
+        X: ndarray | pd.DataFrame,
         *args,
         **kwargs,
     ):

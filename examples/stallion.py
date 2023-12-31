@@ -10,6 +10,7 @@ from sklearn.pipeline import Pipeline
 from deepts.datasets import load_stallion
 from deepts.models import Seq2Seq
 from deepts.preprocessing import make_preprocessor
+from deepts.pipelines import PreprocessorEstimatorPipeline
 
 ts_dataset = load_stallion()
 
@@ -50,12 +51,12 @@ model_kwargs = {
 model = Seq2Seq(**model_kwargs)
 
 # Combine model and preprocessor into a single prediction pipeline.
-pipeline = Pipeline(steps=[("preprocessor", preprocessor), ("model", model)])
-
+inverse_steps = ["datetime", "target"]
+pipeline = PreprocessorEstimatorPipeline(preprocessor, model, inverse_steps)
 
 X[GROUP_COLS] = X[GROUP_COLS].astype("category")
 X[DATETIME_COL] = pd.to_datetime(X[DATETIME_COL])
 X["industry_volume"] = X["industry_volume"].astype(float)
 
 pipeline.fit(X)
-# output = pipeline.predict(X)
+output = pipeline.predict(X)

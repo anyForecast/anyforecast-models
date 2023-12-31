@@ -9,7 +9,7 @@ class PreprocessorEstimatorPipeline(Transformer):
         self,
         preprocessor: Transformer,
         estimator: Transformer,
-        inverse_steps: list | None,
+        inverse_steps: list[str] | None = None,
     ):
         self.preprocessor = preprocessor
         self.estimator = estimator
