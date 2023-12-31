@@ -10,7 +10,7 @@ Resources
 ---------
 
 * Documentation (In progress!)
-* [Examples](https://github.com/skorch-forecasting-dev/skorch-forecasting/tree/master/examples)
+* [Examples](https://github.com/ramonamezquita/deepts/tree/master/examples)
 
 
 Installation

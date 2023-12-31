@@ -4,7 +4,7 @@ import torch
 from pytorch_forecasting import metrics
 from skorch.callbacks import Callback
 
-from deepts.models.base._nn import TimeseriesNeuralNet
+from deepts.models.base import TimeseriesNeuralNet
 from deepts.models.seq2seq._collate import Seq2SeqCollateFn
 from deepts.models.seq2seq._module import Seq2SeqModule
 
