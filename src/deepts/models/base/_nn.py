@@ -11,11 +11,12 @@ import torch
 from deepts.adapters import SkorchAdapter
 from deepts.base import Transformer
 from deepts.data import TimeseriesDataset
-from deepts.models._output_trans import OutputToPandasTransformer
+from deepts.models.base import BaseModule
+from deepts.preprocessing import OutputToPandasTransformer
 
 
 class InitParams:
-    """Infers __init__ parameters from the given context.
+    """Infers init parameters from the given context.
 
     Parameters
     ----------
@@ -30,13 +31,13 @@ class InitParams:
         self.context = context
         self.kwargs = kwargs
 
-    def get(self, cls: Type[Any]) -> dict:
+    def get(self, cls: Type[Any]) -> dict[str, Any]:
         """Infers cls init parameters from the given context.
 
         Parameters
         ----------
         cls : Type[Any]
-            Class whose __init__ parameters will be obtained.
+            Class whose init parameters will be obtained.
 
         Returns
         -------
@@ -60,7 +61,9 @@ class InitParams:
         init = getattr(cls.__init__, "deprecated_original", cls.__init__)
         return inspect.signature(init)
 
-    def _get_init_kwargs(self, init_signature):
+    def _get_init_kwargs(
+        self, init_signature: inspect.Signature
+    ) -> dict[str, Any]:
         """Returns init kwargs inferred from :attr:`context`."""
         context_dict = {**self.context.__dict__, **self.kwargs}
         return {
@@ -220,7 +223,7 @@ class TimeseriesNeuralNet(Transformer, SkorchAdapter):
 
     def __init__(
         self,
-        module: Type[torch.nn.Module],
+        module: Type[BaseModule],
         group_ids: list[str],
         time_idx: str,
         target: str,
@@ -392,7 +395,7 @@ class TimeseriesNeuralNet(Transformer, SkorchAdapter):
 
         self._initialized = True
 
-    def predict(
+    def skorch_predict(
         self,
         X: pd.DataFrame | TimeseriesDataset,
         return_dataset: bool = False,
@@ -420,7 +423,7 @@ class TimeseriesNeuralNet(Transformer, SkorchAdapter):
             return output, dataset
         return output
 
-    def transform(self, X: pd.DataFrame | TimeseriesDataset) -> pd.DataFrame:
+    def predict(self, X: pd.DataFrame | TimeseriesDataset) -> pd.DataFrame:
         """Predicts and transforms input data.
 
         Predictions are transformed using the configured ``output_transformer``.
@@ -435,15 +438,19 @@ class TimeseriesNeuralNet(Transformer, SkorchAdapter):
         trans_output : object
             Output after transformation.
         """
+        output_transformer = self.get_output_transformer()
+        output, ds = self.skorch_predict(X, return_dataset=True)
+        return output_transformer.transform(output, ds.decoded_index)
+
+    def get_output_transformer(self) -> OutputToPandasTransformer:
         if self.output_transformer is None:
-            output_transformer = OutputToPandasTransformer(
+            return OutputToPandasTransformer(
                 group_cols=self.group_ids,
                 output_col=self.target,
                 time_idx_col=self.time_idx,
             )
 
-        output, ds = self.predict(X, return_dataset=True)
-        return output_transformer.transform(output, ds.pf_ds.decoded_index)
+        return self.output_transformer
 
     def get_predict_dataset(self, X: pd.DataFrame) -> TimeseriesDataset:
         """Returns dataset in prediction mode.

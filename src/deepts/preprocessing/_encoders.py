@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 from deepts.base import Transformer
-from deepts.decorators import check, sklearn_validate
+from deepts.decorators import MultiCheck, SklearnCheck
 from deepts.utils import checks
 
 
@@ -68,15 +68,20 @@ class CyclicalEncoder(Transformer):
     def fit(self, X, y=None):
         return self
 
-    @sklearn_validate()
-    @check(checks=[checks.check_1_feature])
-    def transform(self, X) -> np.ndarray:
+    @SklearnCheck()
+    @MultiCheck([checks.check_1_feature])
+    def transform(self, X: pd.DataFrame | np.ndarray) -> np.ndarray:
         """Transforms input data.
 
         Parameters
         ----------
         X : array_like, shape=(n_samples, 1)
             Input data.
+
+        Returns
+        -------
+        Xt : array_like, shape=(n_samples, 2)
+            Sine and cosine transformations.
         """
         sin = SineTransformer(self.period).transform(X)
         cos = CosineTransformer(self.period).transform(X)
@@ -104,7 +109,7 @@ class CyclicalDatetimeEncoder(Transformer):
     ):
         self.datetime_attrs = datetime_attrs
 
-    @check(checks=[checks.check_is_series, checks.check_is_datetime])
+    @MultiCheck(checks=[checks.check_is_series, checks.check_is_datetime])
     def fit(self, X: pd.Series, y=None):
         self.encoders_: dict[str, CyclicalEncoder] = {}
         for attr in self.datetime_attrs:
@@ -114,7 +119,7 @@ class CyclicalDatetimeEncoder(Transformer):
 
         return self
 
-    @check(checks=[checks.check_is_series, checks.check_is_datetime])
+    @MultiCheck(checks=[checks.check_is_series, checks.check_is_datetime])
     def transform(self, X: pd.Series) -> np.ndarray:
         """Adds cyclical columns to ``X``
 
@@ -157,6 +162,11 @@ class TimeIndexEncoder(Transformer):
     ---------
     start_idx : int
         Integer (including 0) where the time index will start
+
+    Attributes
+    ----------
+    encoding_ : dict, pd.Timestamp -> int
+        Mapping from timestamp to its associated index value.
     """
 
     def __init__(
@@ -171,60 +181,81 @@ class TimeIndexEncoder(Transformer):
         """Specifies dtype of transformed/encoded data."""
         return np.dtype("int")
 
-    @check(checks=[checks.check_is_series, checks.check_is_datetime])
-    def fit(self, X: pd.Series, y=None):
+    @SklearnCheck()
+    @MultiCheck(checks=[checks.check_1_feature, checks.check_is_datetime])
+    def fit(self, X: pd.DataFrame | np.ndarray, y=None):
         """Fits transformer with input data.
 
         Parameters
         ----------
-        X : pd.Series
-            Datetime pandas Series.
+        X : array_like, shape=(n, 1)
+            Datetime array.
         """
-        date_range = self.make_date_range(X)
-        time_index = self.make_time_index(date_range)
+        date_range = self._make_date_range(X)
+        time_index = self._make_time_index(date_range)
         self.encoding_ = dict(zip(date_range, time_index))
-
-        self.feature_names_in_ = np.array([X.name])
         return self
 
-    @check(
-        checks=[checks.check_is_series, checks.check_is_datetime],
+    @SklearnCheck(reset=False)
+    @MultiCheck(
+        checks=[checks.check_1_feature, checks.check_is_datetime],
         check_is_fitted=True,
     )
-    def transform(self, X: pd.Series) -> np.ndarray:
+    def transform(self, X: pd.DataFrame | np.ndarray) -> np.ndarray:
         """Encodes input data with a time index.
 
         Parameters
         ----------
-        X : pd.Series
-            Datetime pandas Series.
-        """
-        Xt = X.map(self.encoding_)
-        return Xt.values.reshape(-1, 1)
+        X : array_like, shape=(n, 1)
+            Datetime array.
 
-    @sklearn_validate(reset=False)
-    @check(checks=[checks.check_1_feature], check_is_fitted=True)
+        Returns
+        -------
+        Xt : array_like, shape=(n, 1)
+            Integer array.
+        """
+        return (
+            pd.Series(X.flatten())
+            .astype(str)
+            .map(self.encoding_)
+            .values.reshape(-1, 1)
+        )
+
+    @SklearnCheck(reset=False)
+    @MultiCheck(checks=[checks.check_1_feature], check_is_fitted=True)
     def inverse_transform(self, X: np.ndarray) -> np.ndarray:
-        X: pd.Series = pd.Series(X.flatten())
-        return X.map(self.inverse_encoding).values.reshape(-1, 1)
+        """Inverse transfrom time index to original timestamp.
+
+        Parameters
+        ----------
+        X : array_like, shape=(n, 1)
+            Integer array.
+
+        Returns
+        -------
+        Xi : array_like, shape=(n, 1)
+            Datetime array.
+        """
+        Xi = pd.to_datetime(pd.Series(X.flatten()).map(self.inverse_encoding))
+        return Xi.values.reshape(-1, 1)
 
     @property
     def inverse_encoding(self) -> dict:
         return {v: k for k, v in self.encoding_.items()}
 
-    def make_time_index(self, date_range: pd.DatetimeIndex) -> range:
+    def _make_time_index(self, date_range: pd.DatetimeIndex) -> range:
         return range(self.start_idx, len(date_range) + self.start_idx)
 
-    def make_date_range(self, X: pd.Series) -> pd.DatetimeIndex:
+    def _make_date_range(self, X: np.ndarray) -> np.ndarray:
         date_range = pd.date_range(X.min(), X.max(), freq=self.freq)
 
         if self.extra_timestamps > 0:
-            extra_range = self.make_extra_date_range(X)
+            extra_range = self._make_extra_date_range(X)
             date_range = date_range.union(extra_range)
 
-        return date_range
+        return date_range.astype(str)
 
-    def make_extra_date_range(self, X: pd.Series) -> pd.DatetimeIndex:
+    def _make_extra_date_range(self, X: np.ndarray) -> pd.DatetimeIndex:
         return pd.date_range(
             X.max(),
             periods=self.extra_timestamps + 1,
@@ -233,5 +264,4 @@ class TimeIndexEncoder(Transformer):
         )
 
     def get_feature_names_out(self, input_features=None) -> np.ndarray:
-        self.check_is_fitted()
-        return self.feature_names_in_
+        return getattr(self, "feature_names_in_", None)

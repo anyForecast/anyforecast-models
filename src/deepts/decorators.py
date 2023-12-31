@@ -1,4 +1,9 @@
+import abc
 from typing import Any, Protocol
+
+import numpy as np
+import pandas as pd
+from numpy import ndarray
 
 from deepts.base import Transformer
 
@@ -10,76 +15,99 @@ class Check(Protocol):
 class FitTransformCallable(Protocol):
     """Fit/transform signature."""
 
-    def __call__(self: Transformer, X, *args, **kwargs) -> Any: ...
+    def __call__(
+        transformer: Transformer,
+        X: np.ndarray | pd.DataFrame,
+        *args,
+        **kwargs,
+    ): ...
 
 
-class FitTransformDecorator(Protocol):
-    """Extends behavior of FitTransformCallable."""
+class CheckDecorator(abc.ABC):
+    @abc.abstractmethod
+    def check(
+        self,
+        transformer: Transformer,
+        X: np.ndarray | pd.DataFrame,
+        *args,
+        **kwargs,
+    ):
+        pass
 
-    def __call__(self, f: FitTransformCallable) -> FitTransformCallable: ...
+    def __call__(self, fit_transform: FitTransformCallable) -> Any:
+        def fit_transform_wrapper(
+            transformer: Transformer,
+            X: np.ndarray | pd.DataFrame,
+            *args,
+            **kwargs,
+        ):
+            X = self.check(transformer, X=X, *args, **kwargs)
+            return fit_transform(transformer, X=X, *args, **kwargs)
 
-
-def check_cols(cols: str) -> FitTransformDecorator:
-    """Adds column check.
-
-    Parameters
-    ----------
-    """
-
-    def decorator(f: FitTransformCallable) -> FitTransformCallable:
-        def inner_f(self: Transformer, X, *args, **kwargs) -> Any:
-            cols_ = getattr(self, cols)
-            for col in cols_:
-                if col not in X:
-                    raise ValueError()
-
-            return f(self, X, *args, **kwargs)
-
-        return inner_f
-
-    return decorator
+        return fit_transform_wrapper
 
 
-def sklearn_validate(
-    reset: bool = True, force_all_finite: bool = True
-) -> FitTransformDecorator:
-    """Adds sklearn validation.
+class SklearnCheck(CheckDecorator):
+    def __init__(
+        self,
+        reset: bool = True,
+        force_all_finite: bool = True,
+        cast_to_ndarray: bool = True,
+    ):
+        self.reset = reset
+        self.force_all_finite = force_all_finite
+        self.cast_to_ndarray = cast_to_ndarray
 
-    Parameters
-    ----------
-    """
+    def check(
+        self,
+        transformer: Transformer,
+        X: ndarray | pd.DataFrame,
+        *args,
+        **kwargs,
+    ):
+        return transformer.validate_data(
+            X=X,
+            reset=self.reset,
+            force_all_finite=self.force_all_finite,
+            cast_to_ndarray=self.cast_to_ndarray,
+        )
 
-    def decorator(f: FitTransformCallable) -> FitTransformCallable:
-        def inner_f(self: Transformer, X, *args, **kwargs) -> Any:
-            X = self.validate_data(
-                X, reset=reset, force_all_finite=force_all_finite
-            )
-            return f(self, X, *args, **kwargs)
 
-        return inner_f
+class CheckCols(CheckDecorator):
+    def __init__(self, cols_attr: str):
+        self.cols_attr = cols_attr
 
-    return decorator
+    def check(
+        self,
+        transformer: Transformer,
+        X: ndarray | pd.DataFrame,
+        *args,
+        **kwargs,
+    ):
+        cols = getattr(transformer, self.cols_attr)
+        for col in cols:
+            if col not in X:
+                raise ValueError()
+
+        return X
 
 
-def check(
-    checks: list[Check], check_is_fitted: bool = False
-) -> FitTransformDecorator:
-    """Adds arbitrary checks.
+class MultiCheck(CheckDecorator):
+    def __init__(self, checks: list[Check], check_is_fitted: bool = False):
+        self.checks = checks
+        self.check_is_fitted = check_is_fitted
 
-    Parameters
-    ----------
-    """
+    def check(
+        self,
+        transformer: Transformer,
+        X: ndarray | pd.DataFrame,
+        *args,
+        **kwargs,
+    ):
+        if self.check_is_fitted:
+            transformer.check_is_fitted()
 
-    def decorator(f: FitTransformCallable) -> FitTransformCallable:
-        def inner_fun(self: Transformer, X, *args, **kwargs) -> Any:
-            if check_is_fitted:
-                self.check_is_fitted()
+        for check in self.checks:
+            check(X)
 
-            for check in checks:
-                check(X)
-
-            return f(self, X, *args, **kwargs)
-
-        return inner_fun
-
-    return decorator
+        return X

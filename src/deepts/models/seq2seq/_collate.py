@@ -5,6 +5,10 @@ import torch
 from deepts.utils import rnn
 
 
+class InputDict(dict):
+    pass
+
+
 class Seq2SeqCollateFn:
     """Customized Seq2Seq collate function."""
 
@@ -57,7 +61,7 @@ class Seq2SeqCollateFn:
 
     def __call__(
         self, batch: list[tuple[dict[str, torch.Tensor], torch.Tensor]]
-    ) -> tuple[dict[str, dict[str, torch.Tensor]], torch.Tensor]:
+    ) -> tuple[dict[str, InputDict], torch.Tensor]:
         """Collate function to combine items into mini-batch for dataloader.
 
         Parameters
@@ -67,11 +71,11 @@ class Seq2SeqCollateFn:
 
         Returns
         -------
-        minibatch : tuple[dict[str, torch.Tensor], torch.Tensor]
+        minibatch : tuple[dict[str, InputDict], torch.Tensor]
         """
         sequences_to_pad = ("encoder_cont", "decoder_cont", "decoder_target")
 
-        x_dict = collections.defaultdict(list)
+        x_dict: InputDict = collections.defaultdict(list)
         for sample in batch:
             x_dict = self.update_dict(x_dict, sample)
 

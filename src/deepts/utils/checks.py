@@ -1,8 +1,39 @@
+from typing import Any
+
 import pandas as pd
 from pandas.api.types import is_datetime64_any_dtype
+from torch.nn.modules import rnn
 
 
-def _is_single_feature(X) -> bool:
+def is_lstm(rnn_cell: Any) -> bool:
+    """Returns True if ``rnn_cell`` is of type LSTM.
+
+    Parameters
+    ----------
+    rnn_cell : Any
+
+    Returns
+    -------
+    bool
+    """
+    return isinstance(rnn_cell, (rnn.LSTM, rnn.LSTMCell))
+
+
+def is_gru(rnn_cell: Any) -> bool:
+    """Returns True if ``rnn_cell`` is of type GRU.
+
+    Parameters
+    ----------
+    rnn_cell : Any
+
+    Returns
+    -------
+    bool
+    """
+    return isinstance(rnn_cell, (rnn.GRU, rnn.GRUCell))
+
+
+def is_single_feature(X) -> bool:
     """Returns True if input data has a single feature.
 
     Parameters
@@ -16,7 +47,7 @@ def _is_single_feature(X) -> bool:
     return X.shape[1] == 1
 
 
-def _is_1d(X) -> bool:
+def is_1d(X) -> bool:
     """Returns True if input data in 1-dimensional
 
     Parameters
@@ -30,7 +61,7 @@ def _is_1d(X) -> bool:
     return len(X.shape) == 1
 
 
-def _is_pandas_series(X) -> bool:
+def is_pandas_series(X) -> bool:
     """Returns True if input data is instance of :class:`pd.Series`.
 
     Parameters
@@ -44,7 +75,7 @@ def _is_pandas_series(X) -> bool:
     return isinstance(X, pd.Series)
 
 
-def _is_pandas_frame(X) -> bool:
+def is_pandas_frame(X) -> bool:
     """Returns True if input data is instance of :class:`pd.DataFrame`.
 
     Parameters
@@ -58,45 +89,45 @@ def _is_pandas_frame(X) -> bool:
     return isinstance(X, pd.DataFrame)
 
 
-def _is_datetime(X) -> bool:
+def is_datetime(X) -> bool:
     return is_datetime64_any_dtype(X)
 
 
-def make_check_cols(cols: list[str]) -> callable:
-    def check_cols(X: pd.DataFrame):
-        missing = set(cols) - set(X)
-        if missing:
-            raise ValueError()
-
-    return check_cols
+def check_is_lstm_or_gru(rnn_cell: Any) -> None:
+    """Checks passed object is either LSTM or GRU."""
+    if not (is_lstm(rnn_cell) or is_gru(rnn_cell)):
+        raise TypeError(
+            "Passed RNN object must be either LSTM or GRU. Instead got"
+            f" {rnn.__class__.__name__}"
+        )
 
 
 def check_is_1d(X) -> None:
-    """Validates input data is 1-dimensional"""
-    if not _is_1d(X):
+    """Checks input data is 1-dimensional"""
+    if not is_1d(X):
         raise ValueError()
 
 
 def check_1_feature(X) -> None:
     """Validates input data contains a single feature."""
 
-    if not _is_single_feature(X):
+    if not is_single_feature(X):
         raise ValueError()
 
 
 def check_is_series(X) -> None:
     """Validates input data is an instance of :class:`pd.Series`"""
-    if not _is_pandas_series(X):
+    if not is_pandas_series(X):
         raise ValueError()
 
 
 def check_is_frame(X) -> None:
     """Validates input data is an instance of  :class:`pd.DataFrame`"""
-    if not _is_pandas_frame(X):
+    if not is_pandas_frame(X):
         raise ValueError()
 
 
 def check_is_datetime(X) -> None:
     """Validates input data is datetime"""
-    if not _is_datetime(X):
+    if not is_datetime(X):
         raise ValueError()
