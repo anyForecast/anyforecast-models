@@ -7,7 +7,13 @@ from torch.nn.modules.rnn import RNNBase
 
 from deepts.data import TimeseriesDataset
 from deepts.models.base import BaseModule, ModuleFactory
-from deepts.models.nn import embeddings, rnn
+from deepts.modules.embeddings import MultiEmbedding, get_embedding_size
+from deepts.modules.rnn import (
+    AutoRegressiveRNN,
+    ConditionalRNN,
+    HiddenState,
+    make_rnn,
+)
 
 
 class Seq2SeqModuleFactory(ModuleFactory):
@@ -27,9 +33,7 @@ class Seq2SeqModuleFactory(ModuleFactory):
         n_classes = tuple(n_classes.values.numpy() + 1)
 
         # Create (num_embeddings, embedding_dim) tuples.
-        embedding_sizes = [
-            (n, embeddings.get_embedding_size(n)) for n in n_classes
-        ]
+        embedding_sizes = [(n, get_embedding_size(n)) for n in n_classes]
 
         return embedding_sizes
 
@@ -124,15 +128,13 @@ class Seq2SeqModule(BaseModule):
         self.num_layers = num_layers
         self.dropout = dropout
 
-        self.multi_embedding = embeddings.MultiEmbedding(
-            embedding_sizes, concat=True
-        )
+        self.multi_embedding = MultiEmbedding(embedding_sizes, concat=True)
         self.encoder = self.create_encoder()
         self.decoder = self.create_decoder()
 
     def create_rnn(self, input_size: int) -> RNNBase:
         """Creates RNN using init args."""
-        return rnn.make_rnn(
+        return make_rnn(
             cell_type=self.cell,
             input_size=input_size,
             hidden_size=self.hidden_size,
@@ -140,16 +142,16 @@ class Seq2SeqModule(BaseModule):
             dropout=self.dropout if self.num_layers > 1 else 0,
         )
 
-    def create_encoder(self) -> rnn.ConditionalRNN:
+    def create_encoder(self) -> ConditionalRNN:
         """Creates Encoder."""
-        return rnn.ConditionalRNN(
+        return ConditionalRNN(
             rnn_cell=self.create_rnn(input_size=self.encoder_size),
             in_context_features=self.multi_embedding.output_size,
         )
 
-    def create_decoder(self) -> rnn.AutoRegressiveRNN:
+    def create_decoder(self) -> AutoRegressiveRNN:
         """Creates Decoder."""
-        return rnn.AutoRegressiveRNN(
+        return AutoRegressiveRNN(
             rnn_cell=self.create_rnn(input_size=self.decoder_size),
             teacher_forcing_ratio=self.teacher_forcing_ratio,
             output_size=1,
@@ -217,7 +219,7 @@ class Seq2SeqModule(BaseModule):
 
     def encode(
         self, x: dict[str, torch.Tensor]
-    ) -> tuple[torch.Tensor, rnn.HiddenState]:
+    ) -> tuple[torch.Tensor, HiddenState]:
         """Transforms an input sequence of variable length into a fixed-shape
         context variable.
 
@@ -238,7 +240,7 @@ class Seq2SeqModule(BaseModule):
     def decode(
         self,
         x: dict[str, torch.Tensor],
-        hidden_state: rnn.HiddenState,
+        hidden_state: HiddenState,
         first_input: torch.Tensor,
     ) -> torch.Tensor:
         """Maps the fixed-shape encoded state into a variable-length sequence.

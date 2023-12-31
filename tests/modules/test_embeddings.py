@@ -2,7 +2,7 @@ import unittest
 
 import torch
 
-from deepts.models.nn import MultiEmbedding
+from deepts.modules.embeddings import MultiEmbedding
 
 BATCH_SIZE = 10
 
