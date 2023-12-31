@@ -28,60 +28,62 @@ def make_categorical_selector(pattern: str | None = None) -> callable:
     return make_column_selector(pattern, dtype_include=object)
 
 
-def make_timestamp_transformer(
-    timestamp: str, freq: str
+def make_datetime_encoder(
+    datetime_col: str, freq: str
 ) -> PandasColumnTransformer:
-    transformers = [(TimeIndexEncoder(freq=freq), timestamp)]
+    transformers = [(TimeIndexEncoder(freq=freq), [datetime_col])]
     ct = make_sk_column_transformer(transformers)
     return PandasColumnTransformer(ct)
 
 
 def make_features_transformer(
-    group_ids: str | list[str],
-    target: str,
+    group_cols: str | list[str],
+    target_col: str,
     scaler: Transformer,
     encoder: Transformer,
 ) -> GroupedColumnTransformer:
-    pattern = f"^(?!{target}).*$"  # Exclude ``target`` from selection.
+    pattern = f"^(?!{target_col}).*$"  # Exclude ``target_col`` from selection.
     num_selector = make_numeric_selector(pattern)
     cat_selector = make_categorical_selector()
     transformers = [(scaler, num_selector), (encoder, cat_selector)]
     ct = make_sk_column_transformer(transformers)
-    return GroupedColumnTransformer(ct, group_cols=group_ids)
+    return GroupedColumnTransformer(ct, group_cols=group_cols)
 
 
 def make_target_transformer(
-    group_ids: str | list[str], target: str, scaler: Transformer
+    group_cols: str | list[str], target_col: str, scaler: Transformer
 ) -> GroupedColumnTransformer:
-    transformers = [(scaler, [target])]
+    transformers = [(scaler, [target_col])]
     ct = make_sk_column_transformer(transformers)
-    return GroupedColumnTransformer(ct, group_cols=group_ids)
+    return GroupedColumnTransformer(ct, group_cols=group_cols)
 
 
 def make_preprocessor(
-    group_ids: str | list[str],
-    timestamp: str,
-    target: str,
+    group_cols: str | list[str],
+    datetime_col: str,
+    target_col: str,
     freq: str = "D",
     scaler: Transformer = MinMaxScaler(),
     encoder: Transformer = OneHotEncoder(),
 ) -> pipeline.Pipeline:
-    timestamp_trans = make_timestamp_transformer(timestamp=timestamp, freq=freq)
+    datetime_encoder = make_datetime_encoder(
+        datetime_col=datetime_col, freq=freq
+    )
 
     features_trans = make_features_transformer(
-        group_ids=group_ids,
-        target=target,
+        group_cols=group_cols,
+        target_col=target_col,
         scaler=scaler,
         encoder=encoder,
     )
     target_trans = make_target_transformer(
-        group_ids=group_ids, target=target, scaler=scaler
+        group_cols=group_cols, target_col=target_col, scaler=scaler
     )
 
     steps = [
         ("features", features_trans),
         ("target", target_trans),
-        ("timestamp", timestamp_trans),
+        ("datetime", datetime_encoder),
     ]
 
     return pipeline.Pipeline(steps)

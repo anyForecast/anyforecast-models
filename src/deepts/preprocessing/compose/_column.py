@@ -6,7 +6,7 @@ from sklearn.base import clone
 from sklearn.compose import ColumnTransformer
 
 from deepts.base import Transformer
-from deepts.decorators import check
+from deepts.decorators import MultiCheck
 from deepts.utils import checks
 
 from ._dtypes import OutputDTypesResolver
@@ -36,7 +36,7 @@ class PandasColumnTransformer(Transformer):
     def __init__(self, column_transformer: ColumnTransformer):
         self.column_transformer = column_transformer
 
-    @check(checks=[checks.check_is_frame])
+    @MultiCheck(checks=[checks.check_is_frame])
     def fit(self, X: pd.DataFrame, y: None = None):
         """Fit all transformers using X.
 
@@ -60,7 +60,7 @@ class PandasColumnTransformer(Transformer):
         self.feature_dtypes_in_: dict[str, np.dtype] = X.dtypes.to_dict()
         return self
 
-    @check(checks=[checks.check_is_frame])
+    @MultiCheck(checks=[checks.check_is_frame])
     def transform(self, X: pd.DataFrame, to_frame: bool = True) -> pd.DataFrame:
         """Transforms input data and collects results in a pandas DataFrame.
 

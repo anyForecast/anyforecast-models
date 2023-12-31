@@ -5,7 +5,7 @@ import pandas as pd
 from sklearn.compose import ColumnTransformer
 
 from deepts import base, exceptions
-from deepts.decorators import check
+from deepts.decorators import MultiCheck
 from deepts.utils import checks
 
 from ._wrapper import ColumnTransformerWrapper
@@ -130,7 +130,7 @@ class ColumnTransformerInverseTransform:
         self.column_transformer = ColumnTransformerWrapper(column_transformer)
         self.non_inverse_behavior = non_inverse_behavior
 
-    @check(checks=[checks.check_is_frame])
+    @MultiCheck(checks=[checks.check_is_frame])
     def transform(
         self, X: pd.DataFrame, to_frame: bool = True
     ) -> pd.DataFrame | dict[str, np.ndarray]:
