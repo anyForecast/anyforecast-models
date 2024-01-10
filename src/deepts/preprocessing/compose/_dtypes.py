@@ -4,8 +4,6 @@ from sklearn.compose._column_transformer import _is_empty_column_selection
 
 from deepts import base
 
-from ._wrapper import ColumnTransformerWrapper
-
 
 class OutputDTypesResolver:
     """Output dtypes resolver.
@@ -17,7 +15,7 @@ class OutputDTypesResolver:
     """
 
     def __init__(self, column_transformer: ColumnTransformer):
-        self.column_transformer = ColumnTransformerWrapper(column_transformer)
+        self.column_transformer = column_transformer
 
     def resolve(
         self, feature_dtypes_in: dict[str, np.dtype] | None = None
@@ -30,7 +28,9 @@ class OutputDTypesResolver:
         """
         dtypes_out: dict[str, np.dtype] = {}
 
-        for name, trans, column, _ in self.column_transformer.iter():
+        for name, trans, column, _ in self.column_transformer._iter(
+            fitted=True, column_as_strings=True
+        ):
             trans_dtype_out = self.get_feature_dtypes_out_for_transformer(
                 name=name,
                 trans=trans,
