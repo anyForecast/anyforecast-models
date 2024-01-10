@@ -5,12 +5,11 @@ then appended to it to have a full prediction pipeline.
 """
 
 import pandas as pd
-from sklearn.pipeline import Pipeline
 
 from deepts.datasets import load_stallion
 from deepts.models import Seq2Seq
-from deepts.preprocessing import make_preprocessor
 from deepts.pipelines import PreprocessorEstimatorPipeline
+from deepts.preprocessing import make_preprocessor
 
 ts_dataset = load_stallion()
 
