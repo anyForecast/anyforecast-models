@@ -19,6 +19,10 @@ def is_lstm(rnn_cell: Any) -> bool:
     return isinstance(rnn_cell, (rnn.LSTM, rnn.LSTMCell))
 
 
+def is_invertible(trans: Any) -> bool:
+    return hasattr(trans, "inverse_transform")
+
+
 def is_passthrough_or_drop(trans: Any) -> bool:
     return trans in ["passthrough", "drop"]
 

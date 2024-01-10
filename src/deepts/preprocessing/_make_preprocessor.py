@@ -7,9 +7,11 @@ from sklearn.compose import (
 from sklearn.preprocessing import MinMaxScaler, OneHotEncoder
 
 from deepts.base import Transformer
-
-from ._encoders import TimeIndexEncoder
-from .compose import GroupedColumnTransformer, PandasColumnTransformer
+from deepts.preprocessing import TimeIndexEncoder
+from deepts.preprocessing.compose import (
+    GroupedColumnTransformer,
+    PandasColumnTransformer,
+)
 
 __all__ = ("make_preprocessor",)
 

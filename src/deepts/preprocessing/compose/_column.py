@@ -5,7 +5,7 @@ from sklearn.compose import ColumnTransformer
 
 from deepts.base import Transformer
 from deepts.decorators import MultiCheck
-from deepts.preprocessing.compose import InverseColumnTransformer
+from deepts.preprocessing.compose._inverse import InverseColumnTransformer
 from deepts.utils import checks
 
 from ._dtypes import OutputDTypesResolver

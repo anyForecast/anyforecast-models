@@ -1,4 +1,3 @@
-from . import compose
 from ._data import IdentityTransformer
 from ._encoders import (
     CyclicalDatetimeEncoder,
@@ -15,5 +14,4 @@ __all__ = [
     "IdentityTransformer",
     "OutputToPandasTransformer",
     "make_preprocessor",
-    "compose",
 ]

@@ -6,11 +6,11 @@ from sklearn.compose import ColumnTransformer
 
 from deepts import base
 from deepts.decorators import MultiCheck
-from deepts.preprocessing.compose import ColumnTransformerWrapper
 from deepts.preprocessing.compose._inverse_behaviors import (
     InverseBehavior,
     get_inverse_behavior,
 )
+from deepts.preprocessing.compose._wrapper import ColumnTransformerWrapper
 from deepts.utils import checks
 
 
@@ -117,10 +117,13 @@ class InverseColumnTransformer:
         for name, trans, features_in, _ in self.column_transformer.iter():
             features_out = self.get_features_out(name, trans, features_in)
 
+            if features_out is None:
+                continue
+
             # It is possible X does not contain all features/columns of
             # "passthrough" or "drop", so only the ones present are used.
             if checks.is_passthrough_or_drop(trans):
-                features_out = set(features_out).intersection(set(X))
+                features_out = list(set(features_out).intersection(set(X)))
                 features_in = features_out
 
             inverse_trans = _InverseTransformer(

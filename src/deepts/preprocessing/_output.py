@@ -30,7 +30,6 @@ class OutputToPandasTransformer:
     def transform(
         self, output: np.ndarray, decoded_index: pd.DataFrame
     ) -> pd.DataFrame:
-        
         def create_df(output, time_idx, group_cols):
             """Creates dataframe for the current output."""
             df = pd.DataFrame(output, columns=[self.output_col])
@@ -49,10 +48,6 @@ class OutputToPandasTransformer:
             i = group.name
             time_index = gen_time_index(group)
             group_cols = group[self.group_cols].values.flatten()
-            print(i)
-            print(time_index)
-            print(group_cols)
-            print('')
             return create_df(output[i], time_index, group_cols)
 
         decoded_index = decoded_index.reset_index(names="index")

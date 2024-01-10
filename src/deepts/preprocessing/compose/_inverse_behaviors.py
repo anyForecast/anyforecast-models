@@ -34,8 +34,8 @@ def get_inverse_behavior(
     if checks.is_passthrough_or_drop(trans):
         cls = IdentityBehavior
 
-    elif hasattr(trans, "inverse_transform"):
-        cls = NormalBehavior
+    elif checks.is_invertible(trans):
+        cls = InvertibleBehavior
 
     else:  # Transformer does not has inverse transform method.
         cls = IgnoreBehavior if ignore_or_raise == "ignore" else RaiseBehavior
@@ -104,7 +104,7 @@ class IdentityBehavior(InverseBehavior):
         return X[self.features].values
 
 
-class NormalBehavior(InverseBehavior):
+class InvertibleBehavior(InverseBehavior):
     """Normal inverse transformation.
 
     Directly applies :meth:`trans.inverse_transformation` to input data.
