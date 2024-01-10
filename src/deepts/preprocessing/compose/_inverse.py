@@ -1,139 +1,106 @@
-from typing import Any, Literal, Protocol
+from typing import Literal
 
 import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
 
-from deepts import base, exceptions
+from deepts import base
 from deepts.decorators import MultiCheck
+from deepts.preprocessing.compose import ColumnTransformerWrapper
+from deepts.preprocessing.compose._inverse_behaviors import (
+    InverseBehavior,
+    get_inverse_behavior,
+)
 from deepts.utils import checks
 
-from ._wrapper import ColumnTransformerWrapper
 
-
-class NonInverseBehavior(Protocol):
-    """Interface behavior for non inverse transformers."""
-
-    def __call__(self, X, name: str, trans: base.Transformer) -> Any: ...
-
-
-def _ignore_behavior(X, name, trans) -> np.ndarray:
-    """Ignore behavior for non inverse transformers."""
-    return np.ndarray(shape=(len(X), 0))
-
-
-def _raise_behavior(X, name, trans):
-    """Raise behavior for non inverse transformers."""
-    raise AttributeError(
-        f"Transformer {name} (type {type(trans).__name__}) does "
-        "not provide `inverse_transform` method."
-    )
-
-
-def get_non_inverse_behavior(
-    name: Literal["raise", "ignore"]
-) -> NonInverseBehavior:
-    behaviors = {"ignore": _ignore_behavior, "raise": _raise_behavior}
-    return behaviors[name]
-
-
-def _validate_X_for_inverse_transform(
-    X: pd.DataFrame,
-    name: str,
-    trans: str | base.Transformer,
-    features: np.ndarray | list[str],
-):
-    """Validtes X contains the required features/columns for inverse transform.
-
-    Raises
-    ------
-    InverseTransformerFeaturesError when there are missing
-    features/columns in X.
-
-    Notes
-    -----
-    Only "passthrough" transformation is allowed to have missing features.
-
-    Returns
-    -------
-    X : pd.DataFrame
-        Subset of X containing the passed features.
-    """
-    missing = set(features) - set(X)
-
-    if missing:
-        if trans == "passthrough":
-
-            # Only "passthrough" transformation is allowed to have
-            # missing features (only the ones present in X are returned).
-            intersection = set(features).intersection(set(X))
-            return X[list(intersection)]
-
-        raise exceptions.InverseTransformFeaturesError(
-            name=name,
-            type=type(trans).__name__,
-            missing_features=missing,
-        )
-
-    return X[features]
-
-
-def _inverse_transform(
-    X: pd.DataFrame,
-    name: str,
-    trans: str | base.Transformer,
-    non_inverse_behavior: Literal["raise", "ignore"] = "ignore",
-) -> np.ndarray:
-    """Inverse transforms input data.
+class _InverseTransformer:
+    """Inverse transforms input data using __init__ transformer.
 
     Parameters
     ----------
-    X : pd.DataFrame
-        DataFrame to be inverse transformed.
-
     name : str
         Transformer name.
 
-    trans : transformer estimator or 'passthrough'
-        Transformer.
+    trans : transformer estimator or "passthrough"
+        Transformer instance.
 
-    Returns
-    -------
-    inverse_transform : 2-D numpy array
-        Array with inverse transformed data.
+    features : list of str
+        Features inside input data X to be inverse transformed.
+
+    ignore_or_raise : str, {"ignore", "raise"}
+        Behavior for when transformers do not have inverse_transform method.
     """
-    if trans == "passthrough":
-        return X.values
 
-    if hasattr(trans, "inverse_transform"):
-        return trans.inverse_transform(X)
+    def __init__(
+        self,
+        name: str,
+        trans: base.Transformer,
+        features: np.ndarray | list[str],
+        ignore_or_raise: Literal["ignore", "raise"],
+    ) -> None:
+        self.name = name
+        self.trans = trans
+        self.features = features
+        self.ignore_or_raise = ignore_or_raise
 
-    return get_non_inverse_behavior(non_inverse_behavior)(
-        X=X, name=name, trans=trans
-    )
+    def inverse_transform(self, X: pd.DataFrame) -> np.ndarray:
+        """Inverse transforms input data.
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            DataFrame to be inverse transformed.
+
+        Returns
+        -------
+        Xi : 2-D numpy array
+            Array with inverse transformed data.
+        """
+        return self.get_inverse_behavior().inverse_transform(X)
+
+    def get_inverse_behavior(self) -> InverseBehavior:
+        return get_inverse_behavior(
+            name=self.name,
+            trans=self.trans,
+            features=self.features,
+            ignore_or_raise=self.ignore_or_raise,
+        )
 
 
-class ColumnTransformerInverseTransform:
+class InverseColumnTransformer:
     """Inverse transformation of a sklearn :class:`ColumnTransformer` instance.
 
     Parameters
     ----------
     column_transformer : sklearn.compose.ColumnTransformer
         Fitted sklearn :class:`ColumnTransformer` instance.
+
+    ignore_or_raise : str, {"ignore", "raise"}
+        Behavior for when transformers do not have inverse_transform method.
     """
 
     def __init__(
         self,
         column_transformer: ColumnTransformer,
-        non_inverse_behavior: Literal["raise", "ignore"] = "ignore",
+        ignore_or_raise: Literal["ignore", "raise"] = "ignore",
     ):
         self.column_transformer = ColumnTransformerWrapper(column_transformer)
-        self.non_inverse_behavior = non_inverse_behavior
+        self.ignore_or_raise = ignore_or_raise
+
+    def get_features_out(
+        self,
+        name: str,
+        trans: base.Transformer,
+        column: list[str],
+    ) -> np.ndarray:
+        """Returns features_out for transformer."""
+        return self.column_transformer.get_feature_name_out_for_transformer(
+            name=name, trans=trans, column=column
+        )
 
     @MultiCheck(checks=[checks.check_is_frame])
-    def transform(
-        self, X: pd.DataFrame, to_frame: bool = True
-    ) -> pd.DataFrame | dict[str, np.ndarray]:
+    def inverse_transform(self, X: pd.DataFrame) -> pd.DataFrame:
         """Inverse transforms X.
 
         Parameters
@@ -148,42 +115,26 @@ class ColumnTransformerInverseTransform:
         inverse_transforms: dict[str, np.ndarray] = {}
 
         for name, trans, features_in, _ in self.column_transformer.iter():
+            features_out = self.get_features_out(name, trans, features_in)
 
-            if isinstance(features_in, str):
-                features_in = [features_in]
+            # It is possible X does not contain all features/columns of
+            # "passthrough" or "drop", so only the ones present are used.
+            if checks.is_passthrough_or_drop(trans):
+                features_out = set(features_out).intersection(set(X))
+                features_in = features_out
 
-            features_out = (
-                self.column_transformer.get_feature_name_out_for_transformer(
-                    name=name, trans=trans, column=features_in
-                )
-            )
-            if features_out is None:
-                continue
-
-            X_validated = _validate_X_for_inverse_transform(
-                X=X, name=name, trans=trans, features=features_out
-            )
-
-            if trans == "passthrough":
-                features_in = X_validated.columns
-
-            inverse_transform: np.ndarray = _inverse_transform(
-                X=X_validated,
+            inverse_trans = _InverseTransformer(
                 name=name,
                 trans=trans,
-                non_inverse_behavior=self.non_inverse_behavior,
+                features=features_out,
+                ignore_or_raise=self.ignore_or_raise,
             )
 
-            # Only consider non-empty inverse transformations. Empty
-            # inverse transformations are possible when transformers do not have
-            # the method :meth:`inverse_transform` and attribute
-            # ``non_inverse_behavior`` is set to "ignore".
-            if inverse_transform.size != 0:
-                for i, col_name in enumerate(features_in):
-                    inverse_transforms[col_name] = inverse_transform[:, i]
+            Xi = inverse_trans.inverse_transform(X)
 
-        return (
-            pd.DataFrame.from_dict(inverse_transforms)
-            if to_frame
-            else inverse_transforms
-        )
+            # Only consider non-empty inverse transformations.
+            if Xi.size != 0:
+                for i, feature in enumerate(features_in):
+                    inverse_transforms[feature] = Xi[:, i]
+
+        return pd.DataFrame.from_dict(inverse_transforms)

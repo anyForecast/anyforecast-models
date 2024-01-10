@@ -1,5 +1,3 @@
-from typing import Literal
-
 import numpy as np
 import pandas as pd
 from sklearn.base import clone
@@ -7,10 +5,10 @@ from sklearn.compose import ColumnTransformer
 
 from deepts.base import Transformer
 from deepts.decorators import MultiCheck
+from deepts.preprocessing.compose import InverseColumnTransformer
 from deepts.utils import checks
 
 from ._dtypes import OutputDTypesResolver
-from ._inverse import ColumnTransformerInverseTransform
 
 
 class PandasColumnTransformer(Transformer):
@@ -31,6 +29,9 @@ class PandasColumnTransformer(Transformer):
 
     feature_dtypes_in_ : dict, str -> np.dtype
         Input feature dtypes.
+
+    feature_names_in_ : np.ndarray, shape=(n, )
+        Input feature names.
     """
 
     def __init__(self, column_transformer: ColumnTransformer):
@@ -60,6 +61,15 @@ class PandasColumnTransformer(Transformer):
         self.feature_dtypes_in_: dict[str, np.dtype] = X.dtypes.to_dict()
         return self
 
+    @property
+    def feature_names_in_(self) -> np.ndarray:
+        self.check_is_fitted()
+        return self.column_transformer_.feature_names_in_
+
+    def create_inverse_transformer(self) -> InverseColumnTransformer:
+        self.check_is_fitted()
+        return InverseColumnTransformer(self.column_transformer_)
+
     @MultiCheck(checks=[checks.check_is_frame])
     def transform(self, X: pd.DataFrame, to_frame: bool = True) -> pd.DataFrame:
         """Transforms input data and collects results in a pandas DataFrame.
@@ -80,15 +90,7 @@ class PandasColumnTransformer(Transformer):
         frame = pd.DataFrame(data=Xt, columns=self.get_feature_names_out())
         return frame.astype(self.get_feature_dtypes_out())
 
-    @property
-    def feature_names_in_(self) -> np.ndarray:
-        return self.column_transformer_.feature_names_in_
-
-    def inverse_transform(
-        self,
-        X: pd.DataFrame,
-        non_inverse_behavior: Literal["raise", "ignore"] = "ignore",
-    ) -> pd.DataFrame:
+    def inverse_transform(self, X: pd.DataFrame) -> pd.DataFrame:
         """Inverse transforms ``X`` separately by each transformer and
         concatenates results in a single pandas DataFrame.
 
@@ -108,11 +110,8 @@ class PandasColumnTransformer(Transformer):
         -------
         X_out : pd.DataFrame
         """
-        inverse_transformer = ColumnTransformerInverseTransform(
-            column_transformer=self.column_transformer_,
-            non_inverse_behavior=non_inverse_behavior,
-        )
-        return inverse_transformer.transform(X)
+        inverse_transformer = self.create_inverse_transformer()
+        return inverse_transformer.inverse_transform(X)
 
     def get_feature_names_out(self, input_features=None) -> np.array:
         """Get output feature names for transformation.
