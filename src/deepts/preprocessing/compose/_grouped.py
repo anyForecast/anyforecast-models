@@ -3,7 +3,7 @@ import pandas as pd
 from sklearn.compose import ColumnTransformer
 
 from deepts.base import Transformer
-from deepts.decorators import MultiCheck, CheckCols
+from deepts.decorators import CheckCols, MultiCheck
 from deepts.utils import checks
 
 from ._column import PandasColumnTransformer
@@ -71,14 +71,30 @@ class GroupedColumnTransformer(Transformer):
 
         groupby = X.groupby(self.group_cols, group_keys=True, observed=False)
         for group_name in groupby.groups:
-            column_transformer = self.make_column_transformer()
+            column_transformer = self.create_column_transformer()
             group = groupby.get_group(group_name)
             column_transformer.fit(group)
             self.column_transformers_[group_name] = column_transformer
 
         return self
 
-    def make_column_transformer(self) -> PandasColumnTransformer:
+    def transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        """Transforms every group in X.
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            Input data to transform.
+            Must contain ``group_ids`` column(s).
+
+        Returns
+        -------
+        Xt : pd.DataFrame.
+            Transformed dataframe
+        """
+        return self._groupwise_transform(X)
+
+    def create_column_transformer(self) -> PandasColumnTransformer:
         """Construct a new unfitted :class:`PandasColumnTransformer`.
 
         Returns
@@ -133,22 +149,6 @@ class GroupedColumnTransformer(Transformer):
             return transform_func(group)
 
         return groupby.apply(apply_fn).reset_index(drop=True)
-
-    def transform(self, X: pd.DataFrame) -> pd.DataFrame:
-        """Transforms every group in X.
-
-        Parameters
-        ----------
-        X : pd.DataFrame
-            Input data to transform.
-            Must contain ``group_ids`` column(s).
-
-        Returns
-        -------
-        Xt : pd.DataFrame.
-            Transformed dataframe
-        """
-        return self._groupwise_transform(X)
 
     def inverse_transform(self, X: pd.DataFrame) -> pd.DataFrame:
         """Inverse transforms input data.

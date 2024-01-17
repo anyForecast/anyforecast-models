@@ -15,7 +15,8 @@ class BaseError(Exception):
 
     :ivar msg: The descriptive message associated with the error.
     """
-    fmt = 'An unspecified error occurred'
+
+    fmt = "An unspecified error occurred"
 
     def __init__(self, **kwargs):
         msg = self.fmt.format(**kwargs)
@@ -30,5 +31,8 @@ class InverseTransformFeaturesError(BaseError):
     """Inverse transformation cannot be achieved since there are missing
     features.
     """
-    fmt = "The following features for Transformer {name} (type {type}) " \
-          "are missing: {missing_features}"
+
+    fmt = (
+        "The following features for Transformer {name} (type {type}) "
+        "are missing: {missing_features}"
+    )
