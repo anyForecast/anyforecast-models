@@ -36,7 +36,6 @@ class PreprocessorEstimatorPipeline(Transformer):
 
         Xi = X.copy()
         for step in self.inverse_steps:
-            transformer = self.preprocessor[step]
-            Xi = transformer.inverse_transform(Xi)
+            Xi = self.preprocessor[step].inverse_transform(Xi)
 
         return Xi

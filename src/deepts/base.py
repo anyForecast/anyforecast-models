@@ -9,7 +9,8 @@ from sklearn.base import BaseEstimator, TransformerMixin, clone
 class Transformer(BaseEstimator, TransformerMixin):
     """Base Transformer."""
 
-    def get_feature_names_out(self):
+    def get_feature_names_out(self) -> np.ndarray:
+        """Returns transformed feature names."""
         pass
 
     def clone(self) -> Transformer:
@@ -21,10 +22,10 @@ class Transformer(BaseEstimator, TransformerMixin):
 
     def validate_data(
         self,
-        X,
+        X: np.ndarray | pd.DataFrame,
         reset: bool = True,
-        force_all_finite: bool = True,
         cast_to_ndarray: bool = True,
+        **check_params,
     ) -> np.ndarray:
         """Validate input data and set or check the `n_features_in_` attribute.
 
@@ -32,13 +33,22 @@ class Transformer(BaseEstimator, TransformerMixin):
 
         Parameters
         ----------
+        X : array_like
+            Data to validate.
 
+        reset : bool, default=True
+            Whether to reset the `n_features_in_` attribute.
+
+        cast_to_ndarray : bool, default=True
+            Cast `X` to ndarray with checks in `check_params`. If
+            `False`, `X` is unchanged and only `feature_names_in_` and
+            `n_features_in_` are checked.
+
+        **check_params : kwargs
+            Parameters passed to :func:`sklearn.utils.check_array`
         """
         return self._validate_data(
-            X=X,
-            reset=reset,
-            force_all_finite=force_all_finite,
-            cast_to_ndarray=cast_to_ndarray,
+            X=X, reset=reset, cast_to_ndarray=cast_to_ndarray, **check_params
         )
 
     def check_is_fitted(self):
