@@ -1,50 +1,18 @@
 from __future__ import annotations
 
 import abc
-from typing import Literal
+from typing import Literal, Type
 
 import numpy as np
 import pandas as pd
-from numpy import ndarray
 
 from deepts import base
 from deepts.exceptions import InverseTransformFeaturesError
 from deepts.utils import checks
 
 
-def get_inverse_behavior(
-    name: str,
-    trans: base.Transformer | base.InvertibleTransformer,
-    features: np.ndarray,
-    ignore_or_raise: Literal["ignore", "raise"],
-) -> InverseBehavior:
-    """Returns inverse behavior based on the given transformer.
-
-    Parameters
-    ----------
-    name : str
-        Transformer name.
-
-    trans : Transformer
-        Transformer instance.
-
-    features : array_like
-        Features to be inverse transformed.
-
-    ignore_or_raise : str, {"ignore", "raise"}
-        Behavior for when transformers do not have inverse_transform method.
-    """
-    if checks.is_invertible(trans):
-        cls = InvertibleBehavior
-
-    else:  # Transformer does not has inverse transform method.
-        cls = IgnoreBehavior if ignore_or_raise == "ignore" else RaiseBehavior
-
-    return cls(name=name, trans=trans, features=features)
-
-
 class InverseBehavior(abc.ABC):
-    """Inverse transform behavior.
+    """Base abstract class for inverse transform behavior.
 
     Parameters
     ----------
@@ -54,7 +22,7 @@ class InverseBehavior(abc.ABC):
     trans : Transformer
         Transformer instance.
 
-    features : array_like
+    features : array_like of str objects
         Features to be inverse transformed.
     """
 
@@ -63,14 +31,14 @@ class InverseBehavior(abc.ABC):
         name: str,
         trans: base.Transformer | base.InvertibleTransformer,
         features: np.ndarray,
-    ) -> None:
+    ):
         self.name = name
         self.trans = trans
         self.features = features
 
     @abc.abstractmethod
-    def inverse_transform(self, X: pd.DataFrame) -> np.ndarray:
-        """Inverse transformation.
+    def inverse_transform(self, X):
+        """Inverse transforms input data X.
 
         Parameters
         ----------
@@ -97,39 +65,113 @@ class InverseBehavior(abc.ABC):
             )
 
 
+def get_inverse_behavior(
+    trans: base.Transformer | Literal["drop", "passthrough"],
+    ignore_or_raise: Literal["ignore", "raise"],
+) -> Type[InverseBehavior]:
+    """Returns inverse behavior based on the given transformer.
+
+    Parameters
+    ----------
+    trans : trans : transformer estimator or {"passthrough", "drop"}
+        Transformer instance or strings "passthrough" and "drop".
+
+    ignore_or_raise : str, {"ignore", "raise"}
+        Behavior for when transformers do not have inverse_transform method.
+
+    Returns
+    -------
+    InverseBehavior : class
+    """
+    if checks.is_passthrough_or_drop(trans):
+        return IntersectionBehavior
+
+    elif checks.is_invertible(trans):
+        return InvertibleBehavior
+
+    else:
+        return IgnoreBehavior if ignore_or_raise == "ignore" else RaiseBehavior
+
+
 class InvertibleBehavior(InverseBehavior):
-    """Normal inverse transformation.
+    """Invertible behavior.
 
     Directly applies :meth:`trans.inverse_transformation` to input data
     using the configured features.
+
+    Parameters
+    ----------
+    check_features : bool, default=True
+        If True, checks for missing features in X.
     """
 
     def inverse_transform(self, X: pd.DataFrame) -> np.ndarray:
+        """Directly applies :meth:`trans.inverse_transformation` to X.
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            Dataframe to be inverse transformed.
+        """
         self.check_features(X)
-        X = X[self.features].values
-        return self.trans.inverse_transform(X)
-
-
-class IdentityBehavior(InverseBehavior):
-    """Identity behavior."""
-
-    def inverse_transform(self, X: pd.DataFrame) -> ndarray:
-        return X
-
-
-class IgnoreBehavior(InverseBehavior):
-    """Returns empty Numpy array."""
-
-    def inverse_transform(self, X: pd.DataFrame) -> np.ndarray:
-        return np.ndarray(shape=(len(X), 0))
+        return self.trans.inverse_transform(X[self.features])
 
 
 class RaiseBehavior(InverseBehavior):
     """Raises AttributeError."""
 
     def inverse_transform(self, X: pd.DataFrame):
-        msg = (
+        """Raises AttributeError when called.
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            Dataframe to be inverse transformed.
+        """
+        raise AttributeError(
             f"Transformer {self.name} (type {type(self.trans).__name__}) does"
             " not provide `inverse_transform` method."
         )
-        raise AttributeError(msg)
+
+
+class IdentityBehavior(InverseBehavior):
+    """Identity behavior."""
+
+    def inverse_transform(self, X: pd.DataFrame):
+        """Identity function.
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            Dataframe to be inverse transformed.
+        """
+        return X
+
+
+class IntersectionBehavior(InverseBehavior):
+    """Locates features present in both X and self.features."""
+
+    def inverse_transform(self, X: pd.DataFrame):
+        """Returns only features present in both X and self.features.
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            Dataframe to be inverse transformed.
+        """
+        features = list(set(self.features).intersection(set(X)))
+        return X[features]
+
+
+class IgnoreBehavior(InverseBehavior):
+    """Returns empty Numpy array."""
+
+    def inverse_transform(self, X: pd.DataFrame):
+        """Returns empty Numpy array of shape=len(X)
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            Dataframe to be inverse transformed.
+        """
+        return np.ndarray(shape=(len(X), 0))
