@@ -1,0 +1,39 @@
+Metadata-Version: 2.1
+Name: anyforecast-models
+Version: 0.0.10
+Summary: scikit-learn compatible library for state-of-the-art forecasting with neural networks.
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+
+scikit-learn compatible library for state-of-the-art forecasting with neural
+networks.
+
+deepts achieves sklearn compatibility through
+[skorch](https://skorch.readthedocs.io/en/stable/), a neural network library
+that wraps PyTorch models into sklearn estimators.
+
+
+Resources
+---------
+
+* Documentation (In progress!)
+* [Examples](https://github.com/ramonamezquita/deepts/tree/master/examples)
+
+
+Installation
+------------
+
+deepts requires Python 3.10 or higher.
+
+### From source
+
+```
+git clone https://github.com/ramonamezquita/deepts.git
+python -m pip install .
+```
+
+We recommend to use a virtual environment for this (`python -m venv env`).

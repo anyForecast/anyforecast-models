@@ -6,10 +6,10 @@ then appended to it to have a full prediction pipeline.
 
 import pandas as pd
 
-from deepts.datasets import load_stallion
-from deepts.models import Seq2Seq
-from deepts.pipelines import PreprocessorEstimatorPipeline
-from deepts.preprocessing import make_preprocessor
+from anyforecast_models.datasets import load_stallion
+from anyforecast_models.models import Seq2Seq
+from anyforecast_models.pipelines import PreprocessorEstimatorPipeline
+from anyforecast_models.preprocessing import make_preprocessor
 
 ts_dataset = load_stallion()
 
