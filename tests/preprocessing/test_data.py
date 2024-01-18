@@ -3,8 +3,8 @@ import unittest
 import numpy as np
 from numpy.testing import assert_array_equal
 
-from deepts.preprocessing import IdentityTransformer
-from deepts.preprocessing._data import _identity
+from anyforecast_models.preprocessing import IdentityTransformer
+from anyforecast_models.preprocessing._data import _identity
 
 
 def test_identity():

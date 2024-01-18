@@ -4,7 +4,7 @@ import pandas as pd
 from sklearn.compose import ColumnTransformer, make_column_transformer
 from sklearn.preprocessing import MinMaxScaler, OneHotEncoder, StandardScaler
 
-from deepts.preprocessing.compose import (
+from anyforecast_models.preprocessing.compose import (
     GroupedColumnTransformer,
     InverseColumnTransformer,
     PandasColumnTransformer,

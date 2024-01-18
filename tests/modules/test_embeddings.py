@@ -2,7 +2,7 @@ import unittest
 
 import torch
 
-from deepts.modules.embeddings import MultiEmbedding
+from anyforecast_models.modules.embeddings import MultiEmbedding
 
 BATCH_SIZE = 10
 

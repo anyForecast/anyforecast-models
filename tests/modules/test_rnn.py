@@ -3,7 +3,7 @@ from typing import Literal
 
 import torch
 
-from deepts.modules.rnn import ConditionalRNN, make_rnn
+from anyforecast_models.modules.rnn import ConditionalRNN, make_rnn
 
 INPUT_SIZE = 2
 HIDDEN_SIZE = 4

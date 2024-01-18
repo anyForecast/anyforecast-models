@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from numpy.testing import assert_array_equal
 
-from deepts.preprocessing import (
+from anyforecast_models.preprocessing import (
     CyclicalDatetimeEncoder,
     CyclicalEncoder,
     TimeIndexEncoder,
