@@ -91,6 +91,26 @@ class CheckCols(CheckDecorator):
         return X
 
 
+class InputCheck(CheckDecorator):
+    def __init__(self, fn: Check, check_is_fitted: bool = False) -> None:
+        self.fn = fn
+        self.check_is_fitted = check_is_fitted
+
+    def check(
+        self,
+        transformer: Transformer,
+        X: np.ndarray | pd.DataFrame,
+        *args,
+        **kwargs,
+    ):
+        if self.check_is_fitted:
+            transformer.check_is_fitted()
+
+        self.fn(X)
+
+        return X
+
+
 class MultiCheck(CheckDecorator):
     def __init__(self, checks: list[Check], check_is_fitted: bool = False):
         self.checks = checks

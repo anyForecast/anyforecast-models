@@ -3,26 +3,16 @@
 # Learn more about .gitignore:
 #     https://www.atlassian.com/git/tutorials/saving-changes/gitignore
 
-# Node artifact files
-node_modules/
+# Dist
 dist/
 build/
-deepts.egg-info/
-
-# Compiled Java class files
-*.class
+anyforecast_models.egg-info/
 
 # Compiled Python bytecode
 *.py[cod]
 
 # Log files
 *.log
-
-# Package files
-*.jar
-
-# Maven
-target/
 
 # JetBrains IDE
 .idea/
@@ -53,9 +43,9 @@ Thumbs.db
 
 # Checkpoints
 .ipynb_checkpoints
-
-
 *.ipynb
+
+# Virtual envs
 env/
 venv/
 

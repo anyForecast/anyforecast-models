@@ -2,6 +2,7 @@ from typing import Any
 
 import pandas as pd
 from pandas.api.types import is_datetime64_any_dtype
+from sklearn.preprocessing import FunctionTransformer
 from torch.nn.modules import rnn
 
 
@@ -23,8 +24,15 @@ def is_invertible(trans: Any) -> bool:
     return hasattr(trans, "inverse_transform")
 
 
-def is_passthrough_or_drop(trans: Any) -> bool:
-    return trans in ["passthrough", "drop"]
+def is_passthrough(trans: Any) -> bool:
+    if isinstance(trans, FunctionTransformer):
+        if (
+            trans.inverse_func is None
+            and trans.feature_names_out == "one-to-one"
+        ):
+            return True
+
+    return False
 
 
 def is_gru(rnn_cell: Any) -> bool:
