@@ -1,6 +1,5 @@
 import numpy as np
 from sklearn.compose import ColumnTransformer
-from sklearn.compose._column_transformer import _is_empty_column_selection
 
 from anyforecast_models import base
 
@@ -29,7 +28,7 @@ class OutputDTypesResolver:
         dtypes_out: dict[str, np.dtype] = {}
 
         for name, trans, column, _ in self.column_transformer._iter(
-            fitted=True, column_as_strings=True
+            fitted=True, column_as_labels=True, skip_drop=True, skip_empty_columns=True
         ):
             trans_dtype_out = self.get_feature_dtypes_out_for_transformer(
                 name=name,
@@ -68,14 +67,8 @@ class OutputDTypesResolver:
         if feature_dtypes_in is None:
             feature_dtypes_in = {}
 
-        if trans == "drop":
-            dtypes_out = {}
-
-        elif trans == "passthrough":
+        if trans == "passthrough":
             dtypes_out = {c: feature_dtypes_in[c] for c in column}
-
-        elif _is_empty_column_selection(column):
-            dtypes_out = {}
 
         else:  # An actual estimator/transformer object.
             dtypes_out = self.get_dtypes_out_for_estimator(

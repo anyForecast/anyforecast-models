@@ -8,7 +8,7 @@ from sklearn.compose._column_transformer import _check_feature_names_in
 
 from anyforecast_models import base
 from anyforecast_models.base import Transformer
-from anyforecast_models.decorators import MultiCheck
+from anyforecast_models.decorators import InputCheck
 from anyforecast_models.preprocessing.compose._dtypes import (
     OutputDTypesResolver,
 )
@@ -45,7 +45,7 @@ class PandasColumnTransformer(Transformer):
     def __init__(self, column_transformer: ColumnTransformer):
         self.column_transformer = column_transformer
 
-    @MultiCheck(checks=[checks.check_is_frame])
+    @InputCheck(checks.check_is_frame)
     def fit(self, X: pd.DataFrame, y: None = None):
         """Fit all transformers using X.
 
@@ -56,6 +56,7 @@ class PandasColumnTransformer(Transformer):
             transformers.
 
         y : None
+            Compatibility purposes.
 
         Returns
         -------
@@ -69,10 +70,8 @@ class PandasColumnTransformer(Transformer):
         self.feature_dtypes_in_: dict[str, np.dtype] = X.dtypes.to_dict()
         return self
 
-    @MultiCheck(checks=[checks.check_is_frame])
-    def transform(
-        self, X: pd.DataFrame, to_pandas: bool = True
-    ) -> pd.DataFrame:
+    @InputCheck(checks.check_is_frame)
+    def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         """Transforms input data and collects results in a pandas DataFrame.
 
         Parameters
@@ -85,7 +84,7 @@ class PandasColumnTransformer(Transformer):
         pd.DataFrame
         """
         Xt = self.column_transformer_.transform(X)
-        return self.output_to_pandas(Xt) if to_pandas else Xt
+        return self.output_to_pandas(Xt)
 
     @property
     def feature_names_in_(self) -> np.ndarray:
@@ -126,7 +125,7 @@ class PandasColumnTransformer(Transformer):
         inverse_transformer = InverseColumnTransformer(self)
         return inverse_transformer.inverse_transform(X)
 
-    def get_feature_names_out(self, input_features=None) -> np.array:
+    def get_feature_names_out(self, input_features=None) -> np.ndarray:
         """Get output feature names for transformation.
 
         Returns
@@ -149,30 +148,63 @@ class PandasColumnTransformer(Transformer):
         return feature_dtypes_out
 
     def iter(
-        self, fitted=False, replace_strings=False, column_as_strings=False
+        self,
+        fitted: bool = False,
+        column_as_labels: bool = False,
+        skip_drop: bool = False,
+        skip_empty_columns: bool = False,
     ):
         """Generates (name, trans, column, weight) tuples.
 
         Notes
         -----
         Wrapper for private method :meth:`ColumnTransformer._iter`
+
+        Parameters
+        ----------
+        fitted : bool
+            If True, use the fitted transformers (``self.transformers_``) to
+            iterate through transformers, else use the transformers passed by
+            the user (``self.transformers``).
+
+        column_as_labels : bool
+            If True, columns are returned as string labels. If False, columns
+            are returned as they were given by the user. This can only be True
+            if the ``ColumnTransformer`` is already fitted.
+
+        skip_drop : bool
+            If True, 'drop' transformers are filtered out.
+
+        skip_empty_columns : bool
+            If True, transformers with empty selected columns are filtered out.
+
+        Yields
+        ------
+        A generator of tuples containing:
+            - name : the name of the transformer
+            - transformer : the transformer object
+            - columns : the columns for that transformer
+            - weight : the weight of the transformer
         """
         return self.column_transformer_._iter(
             fitted=fitted,
-            replace_strings=replace_strings,
-            column_as_strings=column_as_strings,
+            column_as_labels=column_as_labels,
+            skip_drop=skip_drop,
+            skip_empty_columns=skip_empty_columns,
         )
+
+    def check_feature_names_in(
+        self, input_features: np.ndarray | None = None
+    ) -> np.ndarray:
+        return _check_feature_names_in(self.column_transformer_, input_features)
 
     def get_feature_name_out_for_transformer(
         self,
         name: str,
         trans: str,
-        column: list[str],
-        input_features: list[str] = None,
-    ):
+        input_features: np.ndarray | None = None,
+    ) -> np.ndarray:
         """Gets feature names of transformer.
-
-        Used in conjunction with self.iter(fitted=True)
 
         Notes
         -----
@@ -181,20 +213,175 @@ class PandasColumnTransformer(Transformer):
 
         Returns
         -------
-        feature_names_out : list
+        feature_names_out : np.ndarray
         """
-        input_features = _check_feature_names_in(
-            self.column_transformer_, input_features
-        )
+
         return self.column_transformer_._get_feature_name_out_for_transformer(
-            name, trans, column, input_features
+            name=name, trans=trans, feature_names_in=input_features
         )
 
 
-class InverseTransformer:
-    """Inverse transforms input data using __init__ transformer.
+class InverseColumnTransformer:
+    """Inverse transformation of a :class:`PandasColumnTransformer` instance.
 
-    The inverse transfrom behavior is inferred from the given transformer
+    Parameters
+    ----------
+    column_transformer : compose.PandasColumnTransformer
+        Fitted :class:`PandasColumnTransformer` instance.
+
+    ignore_or_raise : str, {"ignore", "raise"}
+        Behavior for when transformers do not have inverse_transform method.
+    """
+
+    def __init__(
+        self,
+        column_transformer: PandasColumnTransformer,
+        ignore_or_raise: Literal["ignore", "raise"] = "ignore",
+    ):
+        self.column_transformer = column_transformer
+        self.ignore_or_raise = ignore_or_raise
+
+    @InputCheck(checks.check_is_frame)
+    def inverse_transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        """Inverse transforms X.
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            DataFrame to be inverse transformed.
+
+        Returns
+        -------
+        pd.DataFrame
+        """
+        self.column_transformer.check_is_fitted()
+        input_features = self.column_transformer.check_feature_names_in(
+            input_features=None
+        )
+
+        inverse_transforms: list[pd.DataFrame] = []
+        for name, trans, columns, _ in self.column_transformer.iter(
+            fitted=True,
+            column_as_labels=True,
+            skip_drop=True,
+            skip_empty_columns=True,
+        ):
+            feature_names_out = self.get_feature_name_out_for_transformer(
+                name=name, trans=trans, input_features=input_features
+            )
+
+            if feature_names_out is None:
+                continue
+
+            inverse = self.inverse_transform_features(
+                X=X, name=name, trans=trans, features=feature_names_out
+            )
+
+            inverse = self.inverse_to_pandas(inverse, columns)
+            inverse_transforms.append(inverse)
+
+        return self.merge_inverse_transforms(inverse_transforms)
+
+    def inverse_to_pandas(
+        self,
+        inverse: pd.DataFrame | np.ndarray,
+        columns: np.ndarray | list[str],
+    ) -> pd.DataFrame:
+        """Converts inverse transformed data to a pandas DataFrame.
+
+        Parameters
+        ----------
+        inverse : np.ndarray or pd.DataFrame
+            Numpy 2-D array or pandas DataFrame.
+
+        columns : array_like of str objects.
+            Columns to assing when inverse data is a Numpy ndarray.
+        """
+
+        if checks.is_pandas_frame(inverse):
+            inverse = inverse.reset_index(drop=True)
+        else:
+            inverse = pd.DataFrame(inverse, columns=columns)
+
+        return inverse
+
+    def inverse_transform_features(
+        self,
+        X: pd.DataFrame,
+        name: str,
+        trans: base.Transformer,
+        features: np.ndarray,
+    ) -> np.ndarray | pd.DataFrame:
+        """Inverse transforms columns of a single transformer.
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            DataFrame to be inverse transformed.
+
+        name : str
+            Transformer name.
+
+        trans : Transformer
+            Transformer instance.
+
+        features : array_like of str objects.
+            Features inside input data X to be inverse transformed.
+
+        Returns
+        -------
+        inverse : pd.DataFrame
+            Inverse transformed dataframe.
+        """
+        inverse_transformer = FeaturesInverseTransformer(
+            name=name,
+            trans=trans,
+            features=features,
+            ignore_or_raise=self.ignore_or_raise,
+        )
+        return inverse_transformer.inverse_transform(X)
+
+    def merge_inverse_transforms(
+        self, inverse_transforms: list[pd.DataFrame]
+    ) -> pd.DataFrame:
+        """Concatenates inverse transformed DataFrames into a single one.
+
+        Parameters
+        ----------
+        inverse_transforms : list of pd.DataFrame
+            List of inverse transformed dataframes.
+
+        Returns
+        -------
+        merged : pd.DataFrame
+            Merged inverse transformed pandas DataFrame.
+        """
+        merged = pd.concat(inverse_transforms, axis=1)
+        dtypes = self.get_dtypes_in()
+
+        # Select only dtypes inside merged data.
+        dtypes = {col: dtype for col, dtype in dtypes.items() if col in merged}
+
+        return merged.astype(dtypes)
+
+    def get_feature_name_out_for_transformer(
+        self,
+        name: str,
+        trans: base.Transformer,
+        input_features: np.ndarray,
+    ) -> np.ndarray:
+        return self.column_transformer.get_feature_name_out_for_transformer(
+            name=name, trans=trans, input_features=input_features
+        )
+
+    def get_dtypes_in(self) -> dict[str, np.dtype]:
+        return self.column_transformer.feature_dtypes_in_
+
+
+class FeaturesInverseTransformer:
+    """Inverse transforms given features inside the input data.
+
+    The inverse transform behavior is inferred from the given transformer
     (see :meth:`get_inverse_behavior`).
 
     Parameters
@@ -215,7 +402,7 @@ class InverseTransformer:
     def __init__(
         self,
         name: str,
-        trans: base.Transformer | Literal["drop", "passthrough"],
+        trans: base.Transformer | Literal["passthrough"],
         features: np.ndarray,
         ignore_or_raise: Literal["ignore", "raise"],
     ) -> None:
@@ -249,115 +436,3 @@ class InverseTransformer:
         """
         cls = get_inverse_behavior(self.trans, self.ignore_or_raise)
         return cls(name=self.name, trans=self.trans, features=self.features)
-
-
-class InverseColumnTransformer:
-    """Inverse transformation of a :class:`PandasColumnTransformer` instance.
-
-    Parameters
-    ----------
-    column_transformer : compose.PandasColumnTransformer
-        Fitted :class:`PandasColumnTransformer` instance.
-
-    ignore_or_raise : str, {"ignore", "raise"}
-        Behavior for when transformers do not have inverse_transform method.
-    """
-
-    def __init__(
-        self,
-        column_transformer: PandasColumnTransformer,
-        ignore_or_raise: Literal["ignore", "raise"] = "ignore",
-    ):
-        column_transformer.check_is_fitted()
-        self.column_transformer = column_transformer
-        self.ignore_or_raise = ignore_or_raise
-
-    @MultiCheck(checks=[checks.check_is_frame])
-    def inverse_transform(self, X: pd.DataFrame) -> pd.DataFrame:
-        """Inverse transforms X.
-
-        Parameters
-        ----------
-        X : pd.DataFrame
-            DataFrame to be inverse transformed.
-
-        Returns
-        -------
-        Xi : pd.DataFrame or dict[str, pd.DataFrame]
-        """
-        inverse_transforms: list[pd.DataFrame] = []
-
-        for name, trans, features_in, _ in self.column_transformer.iter(
-            replace_strings=False, fitted=True, column_as_strings=True
-        ):
-            Xi = self._inverse_transform(X, name, trans, features_in)
-
-            if checks.is_pandas_frame(Xi):
-                Xi = Xi.reset_index(drop=True)
-            else:
-                Xi = pd.DataFrame(Xi, columns=features_in)
-
-            inverse_transforms.append(Xi)
-
-        return self.merge_inverse_transforms(inverse_transforms)
-
-    def _inverse_transform(
-        self,
-        X: pd.DataFrame,
-        name: str,
-        trans: base.Transformer,
-        features_in: np.ndarray,
-    ) -> np.ndarray:
-        """Inverse transforms ``trans`` features.
-
-        Parameters
-        ----------
-        X : pd.DataFrame
-            DataFrame to be inverse transformed.
-
-        name : str
-            Transformer name.
-
-        trans : Transformer
-            Transformer instance.
-
-        features_in : np.ndarray
-            Input features. These are the features originally
-            transformed by the given ``trans``.
-
-        Returns
-        -------
-        Xi : pd.DataFrame
-            Inverse transformed dataframe.
-        """
-        features_out = self.get_features_out(name, trans, features_in)
-        inverse_trans = InverseTransformer(
-            name, trans, features_out, self.ignore_or_raise
-        )
-        return inverse_trans.inverse_transform(X)
-
-    def get_features_out(
-        self,
-        name: str,
-        trans: base.Transformer,
-        column: list[str],
-    ) -> np.ndarray:
-        """Returns output features for transformer."""
-        return self.column_transformer.get_feature_name_out_for_transformer(
-            name=name, trans=trans, column=column
-        )
-
-    def get_dtypes_in(self) -> dict[str, np.dtype]:
-        return self.column_transformer.feature_dtypes_in_
-
-    def merge_inverse_transforms(
-        self, inverse_transforms: list[pd.DataFrame]
-    ) -> pd.DataFrame:
-        """Concatenates inverse transformed DataFrames into a single one."""
-        merged = pd.concat(inverse_transforms, axis=1)
-        dtypes = self.get_dtypes_in()
-
-        # Select only dtypes inside merged data.
-        dtypes = {col: dtype for col, dtype in dtypes.items() if col in merged}
-
-        return merged.astype(dtypes)

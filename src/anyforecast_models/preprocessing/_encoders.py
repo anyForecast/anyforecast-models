@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 from anyforecast_models.base import Transformer
-from anyforecast_models.decorators import MultiCheck, SklearnCheck
+from anyforecast_models.decorators import InputCheck, MultiCheck, SklearnCheck
 from anyforecast_models.utils import checks
 
 
@@ -69,7 +69,7 @@ class CyclicalEncoder(Transformer):
         return self
 
     @SklearnCheck()
-    @MultiCheck([checks.check_1_feature])
+    @InputCheck(checks.check_1_feature)
     def transform(self, X: pd.DataFrame | np.ndarray) -> np.ndarray:
         """Transforms input data.
 
@@ -222,7 +222,7 @@ class TimeIndexEncoder(Transformer):
         )
 
     @SklearnCheck(reset=False)
-    @MultiCheck(checks=[checks.check_1_feature], check_is_fitted=True)
+    @InputCheck(checks.check_1_feature, check_is_fitted=True)
     def inverse_transform(self, X: np.ndarray) -> np.ndarray:
         """Inverse transfrom time index to original timestamp.
 

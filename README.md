@@ -16,12 +16,12 @@ Resources
 Installation
 ------------
 
-deepts requires Python 3.10 or higher.
+anyforecast-models requires Python 3.10 or higher.
 
 ### From source
 
 ```
-git clone https://github.com/ramonamezquita/deepts.git
+git clone https://github.com/anyForecast/anyforecast-models.git
 python -m pip install .
 ```
 

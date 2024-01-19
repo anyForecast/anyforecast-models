@@ -83,8 +83,8 @@ def get_inverse_behavior(
     -------
     InverseBehavior : class
     """
-    if checks.is_passthrough_or_drop(trans):
-        return IntersectionBehavior
+    if checks.is_passthrough(trans):
+        return PassthroughBehavior
 
     elif checks.is_invertible(trans):
         return InvertibleBehavior
@@ -148,8 +148,8 @@ class IdentityBehavior(InverseBehavior):
         return X
 
 
-class IntersectionBehavior(InverseBehavior):
-    """Locates features present in both X and self.features."""
+class PassthroughBehavior(InverseBehavior):
+    """Returns features present in both X and self.features."""
 
     def inverse_transform(self, X: pd.DataFrame):
         """Returns only features present in both X and self.features.
