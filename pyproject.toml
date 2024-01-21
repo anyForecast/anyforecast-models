@@ -12,7 +12,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "anyforecast-models"
-version = "0.0.12"
+version = "0.0.13"
 description = "scikit-learn compatible library for state-of-the-art forecasting with neural networks."
 readme = "README.md"
 requires-python = ">=3.10"
