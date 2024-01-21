@@ -1,7 +1,7 @@
 scikit-learn compatible library for state-of-the-art forecasting with neural
 networks.
 
-deepts achieves sklearn compatibility through
+anyforecast-models achieves sklearn compatibility through
 [skorch](https://skorch.readthedocs.io/en/stable/), a neural network library
 that wraps PyTorch models into sklearn estimators.
 
