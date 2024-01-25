@@ -6,20 +6,12 @@ from sklearn.base import clone
 from sklearn.compose import ColumnTransformer
 from sklearn.compose._column_transformer import _check_feature_names_in
 
-from anyforecast_models import base
-from anyforecast_models.base import Transformer
-from anyforecast_models.decorators import InputCheck
-from anyforecast_models.preprocessing.compose._dtypes import (
-    OutputDTypesResolver,
-)
-from anyforecast_models.preprocessing.compose._inverse_behaviors import (
-    InverseBehavior,
-    get_inverse_behavior,
-)
+from anyforecast_models import base, decorators
+from anyforecast_models.preprocessing.compose import _dtypes, _inverse_behaviors
 from anyforecast_models.utils import checks
 
 
-class PandasColumnTransformer(Transformer):
+class PandasColumnTransformer(base.Transformer):
     """Pandas wrapper for sklearn :class:`ColumnTransformer`.
 
     This wrapper returns pandas DataFrames instead of numpy arrays in
@@ -45,7 +37,7 @@ class PandasColumnTransformer(Transformer):
     def __init__(self, column_transformer: ColumnTransformer):
         self.column_transformer = column_transformer
 
-    @InputCheck(checks.check_is_frame)
+    @decorators.check_is_pandas()
     def fit(self, X: pd.DataFrame, y: None = None):
         """Fit all transformers using X.
 
@@ -70,7 +62,7 @@ class PandasColumnTransformer(Transformer):
         self.feature_dtypes_in_: dict[str, np.dtype] = X.dtypes.to_dict()
         return self
 
-    @InputCheck(checks.check_is_frame)
+    @decorators.check_is_pandas()
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         """Transforms input data and collects results in a pandas DataFrame.
 
@@ -83,6 +75,8 @@ class PandasColumnTransformer(Transformer):
         -------
         pd.DataFrame
         """
+        self.check_is_fitted()
+
         Xt = self.column_transformer_.transform(X)
         return self.output_to_pandas(Xt)
 
@@ -143,7 +137,7 @@ class PandasColumnTransformer(Transformer):
         feature_dtypes : dict, str -> dtype
         """
         self.check_is_fitted()
-        resolver = OutputDTypesResolver(self.column_transformer_)
+        resolver = _dtypes.OutputDTypesResolver(self.column_transformer_)
         feature_dtypes_out = resolver.resolve(self.feature_dtypes_in_)
         return feature_dtypes_out
 
@@ -241,7 +235,7 @@ class InverseColumnTransformer:
         self.column_transformer = column_transformer
         self.ignore_or_raise = ignore_or_raise
 
-    @InputCheck(checks.check_is_frame)
+    @decorators.check_is_pandas()
     def inverse_transform(self, X: pd.DataFrame) -> pd.DataFrame:
         """Inverse transforms X.
 
@@ -424,15 +418,23 @@ class FeaturesInverseTransformer:
         Xi : 2-D numpy array
             Array with inverse transformed data.
         """
+
         inverse_behavior = self.get_inverse_behavior()
         return inverse_behavior.inverse_transform(X)
 
-    def get_inverse_behavior(self) -> InverseBehavior:
+    def get_inverse_behavior(self) -> _inverse_behaviors.InverseBehavior:
         """Returns inverse behavior based on the given transformer.
 
         Returns
         -------
         inverse_behavior : InverseBehavior
         """
-        cls = get_inverse_behavior(self.trans, self.ignore_or_raise)
+        cls = (
+            _inverse_behaviors.RemainderBehavior
+            if self.name == "remainder"
+            else _inverse_behaviors.get_inverse_behavior(
+                self.trans, self.ignore_or_raise
+            )
+        )
+
         return cls(name=self.name, trans=self.trans, features=self.features)

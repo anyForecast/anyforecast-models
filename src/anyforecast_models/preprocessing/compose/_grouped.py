@@ -2,14 +2,13 @@ import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
 
-from anyforecast_models.base import Transformer
-from anyforecast_models.decorators import CheckCols, MultiCheck
+from anyforecast_models import base, decorators
 from anyforecast_models.utils import checks
 
 from ._column import PandasColumnTransformer
 
 
-class GroupedColumnTransformer(Transformer):
+class GroupedColumnTransformer(base.Transformer):
     """Transformer that transforms by groups.
 
     For each group, a :class:`PandasColumnTransformer` is fitted and
@@ -45,8 +44,8 @@ class GroupedColumnTransformer(Transformer):
         self.column_transformer = column_transformer
         self.group_cols = group_cols
 
-    @CheckCols(cols_attr="group_cols")
-    @MultiCheck(checks=[checks.check_is_frame])
+    @decorators.check_columns_exist(cols_attr="group_cols")
+    @decorators.check_is_pandas()
     def fit(self, X: pd.DataFrame, y=None):
         """Fits a :class:`ColumnTransformer` object to each group inside X.
 
@@ -105,8 +104,8 @@ class GroupedColumnTransformer(Transformer):
             self._pandas_ct = PandasColumnTransformer(self.column_transformer)
         return self._pandas_ct.clone()
 
-    @CheckCols(cols_attr="group_cols")
-    @MultiCheck(checks=[checks.check_is_frame], check_is_fitted=True)
+    @decorators.check_columns_exist(cols_attr="group_cols")
+    @decorators.check_is_pandas()
     def _groupwise_transform(
         self, X: pd.DataFrame, inverse: bool = False
     ) -> pd.DataFrame:
@@ -126,6 +125,7 @@ class GroupedColumnTransformer(Transformer):
         Xt : pd.DataFrame.
             Transformed dataframe
         """
+        self.check_is_fitted()
         groupby = X.groupby(self.group_cols, group_keys=True, observed=False)
 
         def apply_fn(group: pd.DataFrame) -> pd.DataFrame:

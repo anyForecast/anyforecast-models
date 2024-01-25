@@ -1,12 +1,11 @@
 import numpy as np
 import pandas as pd
 
-from anyforecast_models.base import Transformer
-from anyforecast_models.decorators import InputCheck, MultiCheck, SklearnCheck
+from anyforecast_models import base, decorators
 from anyforecast_models.utils import checks
 
 
-class SineTransformer(Transformer):
+class SineTransformer(base.Transformer):
     """Trignometric sine transformation.
 
     Parameters
@@ -28,7 +27,7 @@ class SineTransformer(Transformer):
         return {"stateless": True}
 
 
-class CosineTransformer(Transformer):
+class CosineTransformer(base.Transformer):
     """Trignometric cosine transformation.
 
     Parameters
@@ -50,7 +49,7 @@ class CosineTransformer(Transformer):
         return {"stateless": True}
 
 
-class CyclicalEncoder(Transformer):
+class CyclicalEncoder(base.Transformer):
     """Cyclical encoder.
 
     Encodes periodic features using sine and cosine transformations with the
@@ -68,8 +67,8 @@ class CyclicalEncoder(Transformer):
     def fit(self, X, y=None):
         return self
 
-    @SklearnCheck()
-    @InputCheck(checks.check_1_feature)
+    @decorators.sklearn_check()
+    @decorators.check_input(checks.check_1_feature)
     def transform(self, X: pd.DataFrame | np.ndarray) -> np.ndarray:
         """Transforms input data.
 
@@ -93,7 +92,7 @@ class CyclicalEncoder(Transformer):
             return np.array([prefix + "_sin", prefix + "_cos"])
 
 
-class CyclicalDatetimeEncoder(Transformer):
+class CyclicalDatetimeEncoder(base.Transformer):
     """Encodes datetime features cyclically.
 
     Each periodic datetime feature (day, month, dayofweek) is encoded
@@ -109,7 +108,7 @@ class CyclicalDatetimeEncoder(Transformer):
     ):
         self.datetime_attrs = datetime_attrs
 
-    @MultiCheck(checks=[checks.check_is_series, checks.check_is_datetime])
+    @decorators.check_input(checks.check_is_series, checks.check_is_datetime)
     def fit(self, X: pd.Series, y=None):
         self.encoders_: dict[str, CyclicalEncoder] = {}
         for attr in self.datetime_attrs:
@@ -119,7 +118,7 @@ class CyclicalDatetimeEncoder(Transformer):
 
         return self
 
-    @MultiCheck(checks=[checks.check_is_series, checks.check_is_datetime])
+    @decorators.check_input(checks.check_is_series, checks.check_is_datetime)
     def transform(self, X: pd.Series) -> np.ndarray:
         """Adds cyclical columns to ``X``
 
@@ -155,7 +154,7 @@ class CyclicalDatetimeEncoder(Transformer):
         return np.concatenate(features_out)
 
 
-class TimeIndexEncoder(Transformer):
+class TimeIndexEncoder(base.Transformer):
     """Encodes datetime features with a time index.
 
     Parameters
@@ -181,8 +180,8 @@ class TimeIndexEncoder(Transformer):
         """Specifies dtype of transformed/encoded data."""
         return np.dtype("int")
 
-    @SklearnCheck()
-    @MultiCheck(checks=[checks.check_1_feature, checks.check_is_datetime])
+    @decorators.sklearn_check()
+    @decorators.check_input(checks.check_1_feature, checks.check_is_datetime)
     def fit(self, X: pd.DataFrame | np.ndarray, y=None):
         """Fits transformer with input data.
 
@@ -196,11 +195,8 @@ class TimeIndexEncoder(Transformer):
         self.encoding_ = dict(zip(date_range, time_index))
         return self
 
-    @SklearnCheck(reset=False)
-    @MultiCheck(
-        checks=[checks.check_1_feature, checks.check_is_datetime],
-        check_is_fitted=True,
-    )
+    @decorators.sklearn_check(reset=False)
+    @decorators.check_input(checks.check_1_feature, checks.check_is_datetime)
     def transform(self, X: pd.DataFrame | np.ndarray) -> np.ndarray:
         """Encodes input data with a time index.
 
@@ -214,6 +210,7 @@ class TimeIndexEncoder(Transformer):
         Xt : array_like, shape=(n, 1)
             Integer array.
         """
+        self.check_is_fitted()
         return (
             pd.Series(X.flatten())
             .astype(str)
@@ -221,8 +218,8 @@ class TimeIndexEncoder(Transformer):
             .values.reshape(-1, 1)
         )
 
-    @SklearnCheck(reset=False)
-    @InputCheck(checks.check_1_feature, check_is_fitted=True)
+    @decorators.sklearn_check(reset=False)
+    @decorators.check_input(checks.check_1_feature)
     def inverse_transform(self, X: np.ndarray) -> np.ndarray:
         """Inverse transfrom time index to original timestamp.
 
@@ -236,6 +233,7 @@ class TimeIndexEncoder(Transformer):
         Xi : array_like, shape=(n, 1)
             Datetime array.
         """
+        self.check_is_fitted()
         Xi = pd.to_datetime(pd.Series(X.flatten()).map(self.inverse_encoding))
         return Xi.values.reshape(-1, 1)
 

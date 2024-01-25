@@ -6,8 +6,10 @@ from sklearn.preprocessing import MinMaxScaler, OneHotEncoder, StandardScaler
 
 from anyforecast_models.preprocessing.compose import (
     GroupedColumnTransformer,
-    InverseColumnTransformer,
     PandasColumnTransformer,
+)
+from anyforecast_models.preprocessing.compose._column import (
+    InverseColumnTransformer,
 )
 
 
