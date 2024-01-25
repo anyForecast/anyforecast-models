@@ -6,8 +6,7 @@ from typing import Literal, Type
 import numpy as np
 import pandas as pd
 
-from anyforecast_models import base
-from anyforecast_models.exceptions import InverseTransformFeaturesError
+from anyforecast_models import base, exceptions
 from anyforecast_models.utils import checks
 
 
@@ -58,7 +57,7 @@ class InverseBehavior(abc.ABC):
         missing = set(self.features) - set(X)
 
         if missing:
-            raise InverseTransformFeaturesError(
+            raise exceptions.InverseTransformFeaturesError(
                 name=self.name,
                 type=type(self.trans).__name__,
                 missing_features=missing,
@@ -66,7 +65,7 @@ class InverseBehavior(abc.ABC):
 
 
 def get_inverse_behavior(
-    trans: base.Transformer | Literal["drop", "passthrough"],
+    trans: base.Transformer,
     ignore_or_raise: Literal["ignore", "raise"],
 ) -> Type[InverseBehavior]:
     """Returns inverse behavior based on the given transformer.
@@ -83,14 +82,10 @@ def get_inverse_behavior(
     -------
     InverseBehavior : class
     """
-    if checks.is_passthrough(trans):
-        return PassthroughBehavior
-
-    elif checks.is_invertible(trans):
+    if checks.is_invertible(trans):
         return InvertibleBehavior
 
-    else:
-        return IgnoreBehavior if ignore_or_raise == "ignore" else RaiseBehavior
+    return IgnoreBehavior if ignore_or_raise == "ignore" else RaiseBehavior
 
 
 class InvertibleBehavior(InverseBehavior):
@@ -148,7 +143,7 @@ class IdentityBehavior(InverseBehavior):
         return X
 
 
-class PassthroughBehavior(InverseBehavior):
+class RemainderBehavior(InverseBehavior):
     """Returns features present in both X and self.features."""
 
     def inverse_transform(self, X: pd.DataFrame):
