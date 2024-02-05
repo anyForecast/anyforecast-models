@@ -1,7 +1,7 @@
 """
-This example shows the use of `deepts.preprocessing.make_preprocessor` 
-when creating time series preprocessors. The `deepts.models.Seq2Seq` model is 
-then appended to it to have a full prediction pipeline.
+This example shows the use of :pyfunc:`make_preprocessor` in the preprocessing
+module when creating time series preprocessors. The :class:`models.Seq2Seq`
+model is then appended to it to have a full prediction pipeline.
 """
 
 import pandas as pd
