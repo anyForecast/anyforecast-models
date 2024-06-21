@@ -2,8 +2,9 @@ from typing import Any
 
 import pandas as pd
 from pandas.api.types import is_datetime64_any_dtype
-from sklearn.preprocessing import FunctionTransformer
 from torch.nn.modules import rnn
+
+from anyforecast_models import base, exceptions
 
 
 def is_lstm(rnn_cell: Any) -> bool:
@@ -136,3 +137,24 @@ def check_is_datetime(X) -> None:
     """Validates input data is datetime"""
     if not is_datetime(X):
         raise ValueError()
+
+
+def check_inverse_features(
+    X: pd.DataFrame,
+    name: str,
+    trans: base.Transformer,
+    features: list[str],
+) -> None:
+    """Checks X has the required features/columns for inverse transform.
+
+    Raises
+    ------
+    InverseTransformerFeaturesError when there are missing
+    features/columns in X.
+    """
+    missing = set(features) - set(X)
+
+    if missing:
+        raise exceptions.InverseTransformFeaturesError(
+            name=name, type=type(trans).__name__, missing_features=missing
+        )

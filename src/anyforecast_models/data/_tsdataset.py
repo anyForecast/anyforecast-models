@@ -215,6 +215,7 @@ class TimeseriesDataset(TorchDataset):
             scalers=self.get_default_scalers(),
             categorical_encoders=self.categorical_encoders,
             predict_mode=self.predict_mode,
+            target_normalizer=None,
             **self.features.dict(),
         )
 
