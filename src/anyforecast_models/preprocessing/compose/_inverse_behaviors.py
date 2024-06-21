@@ -1,12 +1,10 @@
-from __future__ import annotations
-
 import abc
 from typing import Literal, Type
 
 import numpy as np
 import pandas as pd
 
-from anyforecast_models import base, exceptions
+from anyforecast_models import base
 from anyforecast_models.utils import checks
 
 
@@ -46,34 +44,17 @@ class InverseBehavior(abc.ABC):
         """
         pass
 
-    def check_features(self, X: pd.DataFrame) -> None:
-        """Checks X has the required features/columns for inverse transform.
-
-        Raises
-        ------
-        InverseTransformerFeaturesError when there are missing
-        features/columns in X.
-        """
-        missing = set(self.features) - set(X)
-
-        if missing:
-            raise exceptions.InverseTransformFeaturesError(
-                name=self.name,
-                type=type(self.trans).__name__,
-                missing_features=missing,
-            )
-
 
 def get_inverse_behavior(
     trans: base.Transformer,
-    ignore_or_raise: Literal["ignore", "raise"],
+    ignore_or_raise: Literal["ignore", "raise"] = "ignore",
 ) -> Type[InverseBehavior]:
     """Returns inverse behavior based on the given transformer.
 
     Parameters
     ----------
-    trans : trans : transformer estimator or {"passthrough", "drop"}
-        Transformer instance or strings "passthrough" and "drop".
+    trans : trans : transformer estimator
+        Transformer instance.
 
     ignore_or_raise : str, {"ignore", "raise"}
         Behavior for when transformers do not have inverse_transform method.
@@ -108,7 +89,13 @@ class InvertibleBehavior(InverseBehavior):
         X : pd.DataFrame
             Dataframe to be inverse transformed.
         """
-        self.check_features(X)
+        checks.check_inverse_features(
+            X=X,
+            name=self.name,
+            trans=self.trans,
+            features=self.features
+        )
+        
         return self.trans.inverse_transform(X[self.features])
 
 
